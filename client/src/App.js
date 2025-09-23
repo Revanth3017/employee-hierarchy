@@ -1,15 +1,13 @@
-import { useMemo } from "react";
 import { AppBar, Toolbar, Typography, Button, Container, Box } from "@mui/material";
 import useAuth from "./hooks/useAuth";
 import LoginForm from "./components/LoginForm";
+import SearchBar from "./components/SearchBar";
+import OrgTree from "./components/OrgTree";
+import { useState } from "react";
 
-/**
- * App shell:
- * - On mobile, items wrap (no overflow) and keep touch-friendly spacing.
- * - Content area uses responsive vertical padding.
- */
 export default function App() {
   const { user, isAuthenticated, login, logout } = useAuth();
+  const [focusName, setFocusName] = useState("");
 
   if (!isAuthenticated) return <LoginForm onLogin={login} />;
 
@@ -19,16 +17,20 @@ export default function App() {
         <Toolbar
           sx={{
             gap: 1,
-            flexWrap: "wrap",                 // critical for responsiveness
+            flexWrap: "wrap",
             alignItems: "center",
-            py: { xs: 1, sm: 1.5 },          // slightly taller on bigger screens
+            py: { xs: 1, sm: 1.5 },
           }}
         >
           <Typography variant="h6" sx={{ flexGrow: 1, minWidth: 180 }}>
             Employee Hierarchy
           </Typography>
 
-          {/* Greeting can wrap or move to a new line on narrow screens */}
+          {/* Search shrinks on mobile, grows on desktop */}
+          <Box sx={{ flexBasis: { xs: "100%", sm: "auto" }, flexGrow: { xs: 1, sm: 0 } }}>
+            <SearchBar onSearch={setFocusName} />
+          </Box>
+
           <Typography variant="body2" sx={{ mr: 1 }}>
             Hi, {user.name}
           </Typography>
@@ -40,12 +42,14 @@ export default function App() {
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
         <Box sx={{ mb: 2 }}>
           <Typography variant="h5" gutterBottom>
-            Home
+            Organization
           </Typography>
-          <Typography variant="body1">
-            You are logged in. Next we’ll add the Org Tree, Search, and Theme toggle here.
+          <Typography variant="body2" color="text.secondary">
+            Use the search to focus a person. Nodes expand automatically to reveal them.
           </Typography>
         </Box>
+
+        <OrgTree focusName={focusName} />
       </Container>
     </>
   );
