@@ -1,0 +1,30 @@
+{
+  "name": "employee-hierarchy",
+  "version": "1.0.0",
+  "description": "Beehyv task on employee hierarchy",
+  "main": "index.js",
+  "scripts": {
+  "dev": "nodemon index.js",
+  "start": "node index.js",
+  "test": "echo \"Error: no test specified\" && exit 1"
+},
+
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Revanth3017/employee-hierarchy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Revanth3017/employee-hierarchy/issues"
+  },
+  "homepage": "https://github.com/Revanth3017/employee-hierarchy#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

@@ -1,0 +1,100 @@
+[
+  {
+    "id": 1,
+    "name": "Alice Johnson",
+    "role": "CEO",
+    "department": "Executive",
+    "managerId": null
+  },
+  {
+    "id": 2,
+    "name": "Bob Smith",
+    "role": "CTO",
+    "department": "Technology",
+    "managerId": 1
+  },
+  {
+    "id": 3,
+    "name": "Carol White",
+    "role": "CFO",
+    "department": "Finance",
+    "managerId": 1
+  },
+  {
+    "id": 4,
+    "name": "David Brown",
+    "role": "COO",
+    "department": "Operations",
+    "managerId": 1
+  },
+  {
+    "id": 5,
+    "name": "Eve Davis",
+    "role": "Engineering Manager",
+    "department": "Technology",
+    "managerId": 2
+  },
+  {
+    "id": 6,
+    "name": "Frank Wilson",
+    "role": "QA Manager",
+    "department": "Technology",
+    "managerId": 2
+  },
+  {
+    "id": 7,
+    "name": "Grace Lee",
+    "role": "Software Engineer",
+    "department": "Technology",
+    "managerId": 5
+  },
+  {
+    "id": 8,
+    "name": "Hank Miller",
+    "role": "Software Engineer",
+    "department": "Technology",
+    "managerId": 5
+  },
+  {
+    "id": 9,
+    "name": "Ivy Taylor",
+    "role": "QA Engineer",
+    "department": "Technology",
+    "managerId": 6
+  },
+  {
+    "id": 10,
+    "name": "Jack Anderson",
+    "role": "QA Engineer",
+    "department": "Technology",
+    "managerId": 6
+  },
+  {
+    "id": 11,
+    "name": "Karen Thomas",
+    "role": "Finance Manager",
+    "department": "Finance",
+    "managerId": 3
+  },
+  {
+    "id": 12,
+    "name": "Leo Martinez",
+    "role": "Accountant",
+    "department": "Finance",
+    "managerId": 11
+  },
+  {
+    "id": 13,
+    "name": "Mona Harris",
+    "role": "Operations Manager",
+    "department": "Operations",
+    "managerId": 4
+  },
+  {
+    "id": 14,
+    "name": "Nina Clark",
+    "role": "Operations Associate",
+    "department": "Operations",
+    "managerId": 13
+  }
+]
