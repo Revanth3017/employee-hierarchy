@@ -5,14 +5,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import EmployeeCard from "./EmployeeCard";
 import { buildForest } from "../utils/buildTree";
 
-/**
- * OrgTree:
- * - loads /employees.json
- * - builds a forest (one or more roots)
- * - renders recursive TreeItems with EmployeeCard as the label
- * - when focusName changes, expands ancestor path and scrolls to that item
- */
-export default function OrgTree({ focusName }) {
+export default function OrgTree({ query, focusName }) {
   const [data, setData] = useState([]);
   const [expanded, setExpanded] = useState([]);
   const nodeRefs = useRef({}); // id -> DOM element
@@ -26,11 +19,18 @@ export default function OrgTree({ focusName }) {
     })();
   }, []);
 
-  // 2) derived structures
-  const forest = useMemo(() => (data.length ? buildForest(data) : []), [data]);
+  // 2) maps/forest
   const idToEmp = useMemo(() => new Map(data.map(e => [e.id, e])), [data]);
+  const forest = useMemo(() => (data.length ? buildForest(data) : []), [data]);
 
-  // 3) expand all ancestors of a target id
+  // 3) matches set for highlight + count (live as you type)
+  const matches = useMemo(() => {
+    if (!query) return new Set();
+    const q = query.toLowerCase();
+    return new Set(data.filter(e => e.name.toLowerCase().includes(q)).map(e => e.id));
+  }, [data, query]);
+
+  // 4) expand ancestors of id
   function expandPathTo(id) {
     const acc = new Set();
     let cur = idToEmp.get(id);
@@ -41,20 +41,18 @@ export default function OrgTree({ focusName }) {
     setExpanded(prev => Array.from(new Set([...prev, ...acc])));
   }
 
-  // 4) respond to focusName: find first name that matches (contains), expand & scroll to it
+  // 5) on focusName submit: find first exact/partial match, expand + scroll
   useEffect(() => {
     if (!focusName || !data.length) return;
-    const target = data.find(
-      e => e.name.toLowerCase().includes(focusName.toLowerCase())
-    );
+    const q = focusName.toLowerCase();
+    const target = data.find(e => e.name.toLowerCase().includes(q));
     if (target) {
       expandPathTo(target.id);
       const el = nodeRefs.current[target.id];
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [focusName, data]); // runs when search changes or data loaded
+  }, [focusName, data]); // only when you submit
 
-  // 5) recursive renderer
   function renderNode(node) {
     return (
       <TreeItem
@@ -62,7 +60,7 @@ export default function OrgTree({ focusName }) {
         nodeId={String(node.id)}
         label={
           <div ref={el => (nodeRefs.current[node.id] = el)}>
-            <EmployeeCard emp={node} />
+            <EmployeeCard emp={node} query={query} />
           </div>
         }
       >
@@ -82,11 +80,18 @@ export default function OrgTree({ focusName }) {
         onNodeToggle={(_, ids) => setExpanded(ids)}
         sx={{
           width: "100%",
-          ".MuiTreeItem-label": { pr: 1, py: 0.5 }, // comfy touch targets
+          ".MuiTreeItem-label": { pr: 1, py: 0.5 },
         }}
       >
         {forest.map(root => renderNode(root))}
       </TreeView>
+
+      {/* tiny results info */}
+      {query ? (
+        <p style={{ padding: 8, margin: 0, color: "rgba(0,0,0,0.6)" }}>
+          {matches.size ? `${matches.size} match${matches.size > 1 ? "es" : ""}` : "No matches"}
+        </p>
+      ) : null}
     </div>
   );
 }

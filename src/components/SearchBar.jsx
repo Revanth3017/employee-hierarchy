@@ -1,27 +1,30 @@
-import { useState } from "react";
 import { TextField, InputAdornment, IconButton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
 
-export default function SearchBar({ onSearch }) {
-  const [q, setQ] = useState("");
-
+export default function SearchBar({ value, onChange, onSubmit, onClear }) {
   function submit(e) {
     e.preventDefault();
-    onSearch(q.trim());
+    onSubmit?.();            // triggers expand + scroll
   }
 
   return (
-    <form onSubmit={submit} style={{ width: "100%", maxWidth: 380 }}>
+    <form onSubmit={submit} style={{ width: "100%", maxWidth: 420 }}>
       <TextField
         size="small"
         fullWidth
         placeholder="Search employee by name…"
-        value={q}
-        onChange={e => setQ(e.target.value)}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
         InputProps={{
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton type="submit" edge="end" aria-label="search">
+              {value ? (
+                <IconButton aria-label="clear search" onClick={onClear} edge="end">
+                  <CloseIcon />
+                </IconButton>
+              ) : null}
+              <IconButton type="submit" aria-label="search" edge="end">
                 <SearchIcon />
               </IconButton>
             </InputAdornment>

@@ -13,8 +13,10 @@ import { useThemeMode } from "./context/ThemeContext";
 
 export default function App() {
   const { user, isAuthenticated, login, logout } = useAuth();
-  const [focusName, setFocusName] = useState("");
   const { mode, toggle } = useThemeMode();
+
+  const [query, setQuery] = useState("");       // live typing (highlight + count)
+  const [focusName, setFocusName] = useState(""); // submitted value (expand + scroll)
 
   if (!isAuthenticated) return <LoginForm onLogin={login} />;
 
@@ -35,7 +37,12 @@ export default function App() {
 
           {/* Search: full width on mobile, inline on larger screens */}
           <Box sx={{ flexBasis: { xs: "100%", sm: "auto" }, flexGrow: { xs: 1, sm: 0 } }}>
-            <SearchBar onSearch={setFocusName} />
+            <SearchBar
+              value={query}
+              onChange={setQuery}
+              onSubmit={() => setFocusName(query)}
+              onClear={() => { setQuery(""); setFocusName(""); }}
+            />
           </Box>
 
           {/* Theme toggle */}
@@ -54,16 +61,7 @@ export default function App() {
       </AppBar>
 
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h5" gutterBottom>
-            Organization
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Use the search to focus a person. Nodes expand automatically to reveal them.
-          </Typography>
-        </Box>
-
-        <OrgTree focusName={focusName} />
+        <OrgTree query={query} focusName={focusName} />
       </Container>
     </>
   );
