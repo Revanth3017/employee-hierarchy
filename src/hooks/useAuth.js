@@ -13,7 +13,7 @@ export default function useAuth() {
   });
 
   async function login(username, password) {
-    const res = await fetch("/users.json");
+    const res = await fetch(`${process.env.PUBLIC_URL}/users.json`, { cache: "no-store" });
     const users = await res.json();
     const found = users.find(
       (u) => u.username === username && u.password === password

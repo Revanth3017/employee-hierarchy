@@ -11,7 +11,7 @@ function highlight(text, query) {
   return (
     <>
       {before}
-      <Box component="mark" sx={{ px: 0.25, py: 0, bgcolor: "warning.light", color: "inherit" }}>
+      <Box component="mark" sx={{ px: 0.25, bgcolor: "warning.light", color: "inherit" }}>
         {match}
       </Box>
       {after}
@@ -19,9 +19,18 @@ function highlight(text, query) {
   );
 }
 
-function EmployeeCard({ emp, query }) {
+function EmployeeCard({ emp, query, selected = false }) {
   return (
-    <Card variant="outlined" sx={{ width: "100%" }}>
+    <Card
+      variant="outlined"
+      sx={{
+        width: "100%",
+        borderColor: selected ? "primary.main" : "divider",
+        borderWidth: selected ? 2 : 1,
+        bgcolor: selected ? "action.hover" : "background.paper",
+        transition: "background-color 120ms ease, border-color 120ms ease",
+      }}
+    >
       <CardContent sx={{ py: 1.25 }}>
         <Stack spacing={0.25} minWidth={0}>
           <Typography variant="subtitle1" fontWeight={600} noWrap>
