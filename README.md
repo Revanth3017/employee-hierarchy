@@ -1,70 +1,121 @@
-# Getting Started with Create React App
+# Employee Hierarchy
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-## Available Scripts
 
-In the project directory, you can run:
+## 1) How to run the project
 
-### `npm start`
+### Prerequisites
+- **Node.js 18+** (18 LTS recommended for Create React App).
+- This project was bootstrapped with **Create React App** (react-scripts).
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+> If your dev server behaves oddly with React 19, pin to React 18:
+> ```bash
+> npm i -E react@18.3.1 react-dom@18.3.1
+> ```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Install & start (development)
+```bash
+npm install
+npm start
 
-### `npm test`
+## 2)Features implemented 
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+2) Features implemented
 
-### `npm run build`
+Dynamic data load (simulated API)
+Employees and users are fetched at runtime from public/employees.json and public/users.json.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Employee hierarchy (CEO → Managers → Employees)
+A flat list with managerId is converted into a nested tree. Multiple roots are supported.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Employee cards
+Each employee is displayed as a card showing Name, Role, and Department (compact & responsive).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Expand / Collapse subordinates
+Clicking a manager’s card (or the chevron icon) expands/collapses their direct reports.
+Includes Expand All / Collapse All controls.
 
-### `npm run eject`
+Search & focus
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Live highlight of matching text while typing.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Press Enter to expand the path to the first match and scroll into view.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Clear (“x”) button and tiny results count.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Light / Dark theme
+Global theme toggle, persisted in localStorage.
 
-## Learn More
+Login (mock)
+Credentials are validated against public/users.json; successful logins persist to localStorage.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Responsive UI
+Mobile-first layout: the header wraps neatly, search takes a full row on small screens, cards remain touch-friendly.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Loading & error states
+Linear progress indicator while fetching; clear error & empty-state messaging.
 
-### Code Splitting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+3) Where each skill is demonstrated (file references)
+React fundamentals (components, props, state, events)
 
-### Analyzing the Bundle Size
+Presentational components:
+src/components/EmployeeCard.jsx – Renders Name / Role / Department (wrapped in React.memo).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Controlled inputs & forms:
+src/components/SearchBar.jsx – Controlled input + clear + submit on Enter.
+src/components/LoginForm.jsx – Controlled form with error UI.
 
-### Making a Progressive Web App
+Hooks (useState, useEffect, useMemo, useRef)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Data fetching & derived state:
+src/components/OrgTree.jsx
 
-### Advanced Configuration
+useEffect: fetch employees; loading & error handling.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+useMemo: build the tree (forest), flatten nodes, compute match sets.
 
-### Deployment
+useRef: DOM refs used for scrollIntoView.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+useState: expanded nodes, selected node, query/focus values.
 
-### `npm run build` fails to minify
+Auth & persistence:
+src/hooks/useAuth.js – manages user session; reads/writes localStorage.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Data transformation / algorithm
+
+Tolerant schema normalization:
+normalizeEmployees(list) in src/utils/buildTree.js maps various possible key names
+(e.g., manager_id, designation, dept) to { id, managerId, name, role, department }.
+
+Flat → Tree conversion:
+buildForest(list) in src/utils/buildTree.js links each node to its manager via managerId and returns an array of root nodes.
+
+UI/UX & responsiveness
+
+Plain React hierarchical UI (no TreeItem dependency):
+src/components/OrgTree.jsx uses MUI layout primitives (Box, Stack, Collapse) and chevrons to render a nested, collapsible tree of cards.
+
+Responsive header & search:
+src/App.js – toolbar items wrap; search input becomes full width on small screens.
+
+Accessible affordances:
+Chevron buttons have aria-label; search is submit-on-Enter.
+
+Search & focus behavior
+
+Live highlight:
+highlight() helper inside src/components/EmployeeCard.jsx.
+
+Expand path + scroll to result:
+expandPathTo() + scrollIntoView() inside src/components/OrgTree.jsx.
+
+Theming
+
+Global light/dark mode:
+src/context/ThemeContext.jsx – builds the MUI theme (palette.mode) and persists the chosen mode to localStorage. Toggle button in src/App.js.
+
+Error handling & states
+
+Loading / error / empty states:
+src/components/OrgTree.jsx – LinearProgress for loading, Alert for errors and “no data” messaging.

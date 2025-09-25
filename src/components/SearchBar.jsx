@@ -1,29 +1,61 @@
-import { TextField, InputAdornment, IconButton } from "@mui/material";
+import { Box, TextField, InputAdornment, IconButton } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 
 export default function SearchBar({ value, onChange, onSubmit, onClear }) {
   function submit(e) {
     e.preventDefault();
-    onSubmit?.();            // triggers expand + scroll
+    onSubmit?.(); // triggers expand + scroll
   }
 
+  const hasText = Boolean(value && value.trim().length);
+
   return (
-    <form onSubmit={submit} style={{ width: "100%", maxWidth: 420 }}>
+    <Box
+      component="form"
+      onSubmit={submit}
+      sx={{
+        width: "100%",
+        maxWidth: 620,         // feel free to change
+        m: 0,
+        p: 0,
+        bgcolor: "transparent" // ✅ remove the white block behind the input
+      }}
+    >
       <TextField
-        size="small"
+        variant="outlined"
+        size="medium"
         fullWidth
         placeholder="Search employee by name…"
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
+        // ✅ style the outlined input + border behavior
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 3,
+            bgcolor: "common.white", // the input itself stays white
+            // default/resting border
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: hasText ? "black" : "rgba(0,0,0,0.32)",
+            },
+            // hover border
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: hasText ? "black" : "rgba(0,0,0,0.6)",
+            },
+            // focused border
+            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: hasText ? "black" : "rgba(0,0,0,0.87)",
+            },
+          },
+        }}
         InputProps={{
           endAdornment: (
             <InputAdornment position="end">
-              {value ? (
+              {hasText && (
                 <IconButton aria-label="clear search" onClick={onClear} edge="end">
                   <CloseIcon />
                 </IconButton>
-              ) : null}
+              )}
               <IconButton type="submit" aria-label="search" edge="end">
                 <SearchIcon />
               </IconButton>
@@ -31,6 +63,6 @@ export default function SearchBar({ value, onChange, onSubmit, onClear }) {
           ),
         }}
       />
-    </form>
+    </Box>
   );
 }
