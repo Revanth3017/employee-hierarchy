@@ -1,26 +1,23 @@
+// src/components/OrgTree.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-
-
-import TreeView from '@mui/lab/TreeView';
-import TreeItem from '@mui/lab/TreeItem';
-
-
+import {
+  Alert, Box, Button, ButtonGroup, Collapse,
+  IconButton, LinearProgress, Stack, Typography
+} from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import EmployeeCard from "./EmployeeCard";
-import { buildForest } from "../utils/buildTree";
-import { Alert, Box, Button, ButtonGroup, LinearProgress, Stack, Typography } from "@mui/material";
+import { normalizeEmployees, buildForest } from "../utils/buildTree";
 
-export default function OrgTree({ query, focusName }) {
+export default function OrgTree({ query = "", focusName = "" }) {
   const [data, setData] = useState([]);
-  const [expanded, setExpanded] = useState([]);
+  const [expanded, setExpanded] = useState(() => new Set()); // Set<string>
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const nodeRefs = useRef({}); // id -> element
 
-  const nodeRefs = useRef({}); // id -> DOM element
-
-  // 1) load employees with basic error handling
+  // 1) Load + normalize
   useEffect(() => {
     (async () => {
       try {
@@ -28,8 +25,8 @@ export default function OrgTree({ query, focusName }) {
         setErr("");
         const res = await fetch(`${process.env.PUBLIC_URL}/employees.json`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Failed to load employees.json (${res.status})`);
-        const list = await res.json();
-        setData(list);
+        const raw = await res.json();
+        setData(normalizeEmployees(raw));
       } catch (e) {
         setErr(e.message || "Failed to load employees");
       } finally {
@@ -38,10 +35,9 @@ export default function OrgTree({ query, focusName }) {
     })();
   }, []);
 
-  // 2) derived structures
-  const forest = useMemo(() => (data.length ? buildForest(data) : []), [data]);
+  // 2) Build forest and helpers
+  const forest = useMemo(() => buildForest(data), [data]);
 
-  // flatten helpers
   const allNodes = useMemo(() => {
     const out = [];
     const walk = (n) => { out.push(n); n.children?.forEach(walk); };
@@ -49,40 +45,36 @@ export default function OrgTree({ query, focusName }) {
     return out;
   }, [forest]);
 
-  const expandableIds = useMemo(() => {
-    const ids = [];
-    const walk = (n) => {
-      if (n.children && n.children.length) ids.push(String(n.id));
-      n.children?.forEach(walk);
-    };
-    forest.forEach(walk);
-    return ids;
-  }, [forest]);
+  const byId = useMemo(() => new Map(allNodes.map(n => [String(n.id), n])), [allNodes]);
 
-  // 3) live matches for highlight + count
+  const expandableIds = useMemo(() => {
+    return allNodes.filter(n => n.children?.length).map(n => String(n.id));
+  }, [allNodes]);
+
+  // 3) Matches for highlight/count
   const matches = useMemo(() => {
     if (!query) return new Set();
     const q = query.toLowerCase();
-    return new Set(allNodes.filter(e => e.name.toLowerCase().includes(q)).map(e => e.id));
+    return new Set(allNodes.filter(e => (e.name || "").toLowerCase().includes(q)).map(e => e.id));
   }, [allNodes, query]);
 
-  // 4) expand ancestors of id
-  function expandPathTo(id) {
-    const byId = new Map(allNodes.map(n => [n.id, n]));
-    const acc = new Set();
+  // 4) Expand path to id
+  function expandPathTo(idLike) {
+    const id = String(idLike);
+    const next = new Set(expanded);
     let cur = byId.get(id);
     while (cur && cur.managerId != null) {
-      acc.add(String(cur.managerId));
-      cur = byId.get(cur.managerId);
+      next.add(String(cur.managerId));
+      cur = byId.get(String(cur.managerId));
     }
-    setExpanded(prev => Array.from(new Set([...prev, ...acc])));
+    setExpanded(next);
   }
 
-  // 5) on focus submit: pick first match, expand & scroll & select
+  // 5) On focus submit (Enter from search)
   useEffect(() => {
     if (!focusName || !allNodes.length) return;
     const q = focusName.toLowerCase();
-    const target = allNodes.find(e => e.name.toLowerCase().includes(q));
+    const target = allNodes.find(e => (e.name || "").toLowerCase().includes(q));
     if (target) {
       setSelectedId(target.id);
       expandPathTo(target.id);
@@ -91,33 +83,67 @@ export default function OrgTree({ query, focusName }) {
     } else {
       setSelectedId(null);
     }
-  }, [focusName, allNodes]);
+  }, [focusName, allNodes]); // only when user submits
 
-  // 6) expand/collapse all
-  function expandAll() {
-    setExpanded(expandableIds);
-  }
-  function collapseAll() {
-    setExpanded([]);
+  // 6) Toggle a node if it has children
+  function toggleNode(id, hasChildren) {
+    if (!hasChildren) return;
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
-  function renderNode(node) {
+  // 7) Expand/Collapse all
+  function expandAll()   { setExpanded(new Set(expandableIds)); }
+  function collapseAll() { setExpanded(new Set()); }
+
+  // 8) Renderer (pure React, no TreeItem)
+  function renderNode(node, depth = 0) {
+    const id = String(node.id);
+    const hasChildren = !!(node.children && node.children.length);
+    const isOpen = expanded.has(id);
+
     return (
-      <TreeItem
-        key={node.id}
-        nodeId={String(node.id)}
-        label={
-          <div ref={el => (nodeRefs.current[node.id] = el)}>
+      <Box key={id} sx={{ pl: depth * 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          {/* chevron (kept separate for accessibility) */}
+          {hasChildren ? (
+            <IconButton
+              size="small"
+              onClick={() => toggleNode(id, hasChildren)}
+              aria-label={isOpen ? "collapse" : "expand"}
+            >
+              {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+            </IconButton>
+          ) : (
+            <Box sx={{ width: 40 }} />
+          )}
+
+          {/* card (also toggles if manager) */}
+          <Box
+            ref={el => (nodeRefs.current[node.id] = el)}
+            onClick={() => { setSelectedId(node.id); toggleNode(id, hasChildren); }}
+            sx={{ flex: 1, cursor: hasChildren ? "pointer" : "default" }}
+          >
             <EmployeeCard emp={node} query={query} selected={selectedId === node.id} />
-          </div>
-        }
-      >
-        {node.children?.map(child => renderNode(child))}
-      </TreeItem>
+          </Box>
+        </Stack>
+
+        {/* children */}
+        {hasChildren && (
+          <Collapse in={isOpen} timeout="auto" unmountOnExit>
+            <Box sx={{ pl: 2 }}>
+              {node.children.map(child => renderNode(child, depth + 1))}
+            </Box>
+          </Collapse>
+        )}
+      </Box>
     );
   }
 
-  // 7) UI
+  // states
   if (loading) {
     return (
       <Box sx={{ p: 1 }}>
@@ -128,32 +154,20 @@ export default function OrgTree({ query, focusName }) {
       </Box>
     );
   }
-
-  if (err) {
+  if (err) return <Alert severity="error" sx={{ my: 1 }}>{err}</Alert>;
+  if (!forest.length) {
     return (
-      <Alert severity="error" sx={{ my: 1 }}>
-        {err}
+      <Alert severity="info" sx={{ my: 1 }}>
+        No employees to display. Confirm <strong>public/employees.json</strong> has records with
+        <em> id, name, role, department, managerId</em> (or equivalent keys).
       </Alert>
     );
   }
 
-  if (!forest.length) {
-  return (
-    <Alert severity="info" sx={{ my: 1 }}>
-      No employees found. Make sure <strong>client/public/employees.json</strong> exists and is valid.
-    </Alert>
-  );
-}
-
-
+  // tree
   return (
     <Box sx={{ p: 1 }}>
-      {/* controls row */}
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{ mb: 1, justifyContent: "flex-end", flexWrap: "wrap", rowGap: 1 }}
-      >
+      <Stack direction="row" spacing={1} sx={{ mb: 1, justifyContent: "flex-end", flexWrap: "wrap", rowGap: 1 }}>
         <Typography variant="body2" sx={{ mr: "auto" }}>
           {query ? (matches.size ? `${matches.size} match${matches.size > 1 ? "es" : ""}` : "No matches") : " "}
         </Typography>
@@ -163,18 +177,7 @@ export default function OrgTree({ query, focusName }) {
         </ButtonGroup>
       </Stack>
 
-      <TreeView
-        defaultCollapseIcon={<ExpandMoreIcon />}
-        defaultExpandIcon={<ChevronRightIcon />}
-        expanded={expanded}
-        onNodeToggle={(_, ids) => setExpanded(ids)}
-        sx={{
-          width: "100%",
-          ".MuiTreeItem-label": { pr: 1, py: 0.5 },
-        }}
-      >
-        {forest.map(root => renderNode(root))}
-      </TreeView>
+      {forest.map(root => renderNode(root))}
     </Box>
   );
 }
