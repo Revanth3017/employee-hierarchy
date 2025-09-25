@@ -1,68 +1,102 @@
-import { Box, TextField, InputAdornment, IconButton } from "@mui/material";
-import SearchIcon from "@mui/icons-material/Search";
-import CloseIcon from "@mui/icons-material/Close";
+// src/components/SearchBar.jsx
+import React, { useState } from "react";
 
 export default function SearchBar({ value, onChange, onSubmit, onClear }) {
-  function submit(e) {
-    e.preventDefault();
-    onSubmit?.(); // triggers expand + scroll
-  }
-
+  const [isFocused, setIsFocused] = useState(false);
   const hasText = Boolean(value && value.trim().length);
 
+  function handleSubmit(e) {
+    e.preventDefault();
+    onSubmit && onSubmit(); // expand + scroll in your parent
+  }
+
   return (
-    <Box
-      component="form"
-      onSubmit={submit}
-      sx={{
+    <form
+      onSubmit={handleSubmit}
+      style={{
         width: "100%",
-        maxWidth: 620,         // feel free to change
-        m: 0,
-        p: 0,
-        bgcolor: "transparent" // ✅ remove the white block behind the input
+        maxWidth: 720,
+        margin: 0,
+        padding: 0,
+        background: "transparent", // ✅ no white halo
       }}
     >
-      <TextField
-        variant="outlined"
-        size="medium"
-        fullWidth
-        placeholder="Search employee by name…"
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        // ✅ style the outlined input + border behavior
-        sx={{
-          "& .MuiOutlinedInput-root": {
-            borderRadius: 3,
-            bgcolor: "common.white", // the input itself stays white
-            // default/resting border
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: hasText ? "black" : "rgba(0,0,0,0.32)",
-            },
-            // hover border
-            "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: hasText ? "black" : "rgba(0,0,0,0.6)",
-            },
-            // focused border
-            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: hasText ? "black" : "rgba(0,0,0,0.87)",
-            },
-          },
-        }}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              {hasText && (
-                <IconButton aria-label="clear search" onClick={onClear} edge="end">
-                  <CloseIcon />
-                </IconButton>
-              )}
-              <IconButton type="submit" aria-label="search" edge="end">
-                <SearchIcon />
-              </IconButton>
-            </InputAdornment>
-          ),
-        }}
-      />
-    </Box>
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <input
+          type="text"
+          placeholder="Search employee by name…"
+          value={value}
+          onChange={(e) => onChange && onChange(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          style={{
+            flex: 1,
+            height: 44,
+            padding: "0 86px 0 14px", // room for 2 buttons on the right
+            border: "2px solid",
+            borderColor: hasText || isFocused ? "#000" : "#bdbdbd",
+            borderRadius: 12,
+            outline: "none",
+            background: "#fff",  // ✅ stays readable in dark mode
+            color: "#111",
+            fontSize: 16,
+            boxSizing: "border-box",
+          }}
+        />
+
+        {/* Clear button (only when there is text) */}
+        {hasText && (
+          <button
+            type="button"
+            onClick={onClear}
+            title="Clear"
+            style={{
+              position: "absolute",
+              right: 44,
+              width: 32,
+              height: 32,
+              display: "grid",
+              placeItems: "center",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+            }}
+          >
+            {/* small X icon */}
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path
+                d="M18 6L6 18M6 6l12 12"
+                stroke="#555"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
+
+        {/* Search submit button */}
+        <button
+          type="submit"
+          title="Search"
+          style={{
+            position: "absolute",
+            right: 6,
+            width: 32,
+            height: 32,
+            display: "grid",
+            placeItems: "center",
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+          }}
+        >
+          {/* magnifying glass icon */}
+          <svg width="22" height="22" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7" fill="none" stroke="#555" strokeWidth="2" />
+            <line x1="16.65" y1="16.65" x2="21" y2="21" stroke="#555" strokeWidth="2" />
+          </svg>
+        </button>
+      </div>
+    </form>
   );
 }
