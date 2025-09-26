@@ -30,5 +30,5 @@ async function login(username, password) {
     localStorage.removeItem("user");
   }
 
-  return { user, isAuthenticated: !!user, login, logout };
+  return { user, isAuthenticated: Boolean(user), login, logout };
 }
