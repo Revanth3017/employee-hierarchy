@@ -7,6 +7,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import EmployeeCard from "./EmployeeCard";
+import EMPLOYEES from "../data/employees.json";
 import { normalizeEmployees, buildForest } from "../utils/buildTree";
 
 export default function OrgTree({ query = "", focusName = "" }) {
@@ -18,22 +19,20 @@ export default function OrgTree({ query = "", focusName = "" }) {
   const nodeRefs = useRef({}); // id -> element
 
   // 1) Load + normalize
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setErr("");
-        const res = await fetch(`${process.env.PUBLIC_URL}/employees.json`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`Failed to load employees.json (${res.status})`);
-        const raw = await res.json();
-        setData(normalizeEmployees(raw));
-      } catch (e) {
-        setErr(e.message || "Failed to load employees");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // 1) Load + normalize (from src, no fetch)
+useEffect(() => {
+  try {
+    setLoading(true);
+    setErr("");
+    const list = normalizeEmployees(EMPLOYEES); // ← use imported data
+    setData(list);
+  } catch (e) {
+    setErr("Failed to load employees from src/data/employees.json");
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
 
   // 2) Build forest and helpers
   const forest = useMemo(() => buildForest(data), [data]);

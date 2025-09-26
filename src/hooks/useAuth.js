@@ -1,4 +1,5 @@
 import { useState } from "react";
+import USERS from "../data/users.json";
 
 /**
  * useAuth: minimal fake auth using /public/users.json
@@ -12,16 +13,17 @@ export default function useAuth() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  async function login(username, password) {
-    const res = await fetch(`${process.env.PUBLIC_URL}/users.json`, { cache: "no-store" });
-    const users = await res.json();
-    const found = users.find(
-      (u) => u.username === username && u.password === password
-    );
-    if (!found) throw new Error("Invalid credentials");
-    setUser(found);
-    localStorage.setItem("user", JSON.stringify(found));
-  }
+
+
+async function login(username, password) {
+  // no fetch now — data is bundled
+  const users = USERS;
+  const found = users.find(u => u.username === username && u.password === password);
+  if (!found) throw new Error("Invalid credentials");
+  setUser({ username: found.username, name: found.name }); // avoid storing password
+  localStorage.setItem("user", JSON.stringify({ username: found.username, name: found.name }));
+}
+
 
   function logout() {
     setUser(null);
