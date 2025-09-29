@@ -57,6 +57,8 @@ Linear progress indicator while fetching; clear error & empty-state messaging.
 
 
 3) Where each skill is demonstrated (file references)
+
+
 React fundamentals (components, props, state, events)
 
 Presentational components:

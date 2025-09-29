@@ -16,7 +16,11 @@ export default function OrgTree({ query = "", focusName = "" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+
   const nodeRefs = useRef({}); // id -> element
+
+
+
 
   // 1) Load + normalize
   // 1) Load + normalize (from src, no fetch)
@@ -49,6 +53,12 @@ useEffect(() => {
   const expandableIds = useMemo(() => {
     return allNodes.filter(n => n.children?.length).map(n => String(n.id));
   }, [allNodes]);
+ 
+
+  // highlight state for the bulk buttons (NO hooks here)
+const isAllExpanded  = expandableIds.length > 0 && expandableIds.every(id => expanded.has(id));
+const isAllCollapsed = expanded.size === 0;
+
 
   // 3) Matches for highlight/count
   const matches = useMemo(() => {
@@ -103,6 +113,10 @@ useEffect(() => {
     const id = String(node.id);
     const hasChildren = !!(node.children && node.children.length);
     const isOpen = expanded.has(id);
+
+
+
+
 
     return (
       <Box key={id} sx={{ pl: depth * 2 }}>
@@ -170,10 +184,21 @@ useEffect(() => {
         <Typography variant="body2" sx={{ mr: "auto" }}>
           {query ? (matches.size ? `${matches.size} match${matches.size > 1 ? "es" : ""}` : "No matches") : " "}
         </Typography>
-        <ButtonGroup size="small" variant="outlined">
-          <Button onClick={expandAll}>Expand all</Button>
-          <Button onClick={collapseAll}>Collapse all</Button>
-        </ButtonGroup>
+<ButtonGroup size="small" variant="outlined">
+  <Button
+    onClick={expandAll}
+    variant={isAllExpanded ? "contained" : "outlined"}
+  >
+    Expand all
+  </Button>
+  <Button
+    onClick={collapseAll}
+    variant={isAllCollapsed ? "contained" : "outlined"}
+  >
+    Collapse all
+  </Button>
+</ButtonGroup>
+
       </Stack>
 
       {forest.map(root => renderNode(root))}
