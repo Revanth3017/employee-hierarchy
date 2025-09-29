@@ -135,11 +135,16 @@ const isAllCollapsed = expanded.size === 0;
           )}
 
           {/* card (also toggles if manager) */}
-          <Box
-            ref={el => (nodeRefs.current[node.id] = el)}
-            onClick={() => { setSelectedId(node.id); toggleNode(id, hasChildren); }}
-            sx={{ flex: 1, cursor: hasChildren ? "pointer" : "default" }}
-          >
+        <Box
+  ref={el => (nodeRefs.current[node.id] = el)}
+  onClick={() => setSelectedId(node.id)}              // ← no toggle here
+  role="button"
+  tabIndex={0}
+  onKeyDown={(e) => {                                 // keyboard support
+    if (e.key === "Enter" || e.key === " ") setSelectedId(node.id);
+  }}
+  sx={{ flex: 1, cursor: "pointer" }}
+>
             <EmployeeCard emp={node} query={query} selected={selectedId === node.id} />
           </Box>
         </Stack>
