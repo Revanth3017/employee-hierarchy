@@ -28,6 +28,21 @@ const didDefaultExpand = useRef(false);
   const nodeRefs = useRef({}); // id -> element
 
 
+  // Show-all toggle per manager id (default: show only first 2)
+const [showAllChildrenIds, setShowAllChildrenIds] = useState(() => new Set());
+
+// how many children to preview per manager
+const CHILD_PREVIEW_COUNT = 2;
+
+function toggleChildrenView(id) {
+  setShowAllChildrenIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+}
+
+
 const STORAGE_KEY = "employees";
 
 useEffect(() => {
@@ -316,22 +331,50 @@ function handleCreateSubmit(e) {
         </Stack>
 
         {/* children */}
-        {hasChildren && (
-          <Collapse in={isOpen} timeout="auto" unmountOnExit>
-            <Box sx={{ pl: 2 }}>
-              
-      {chainSet ? (
-        id === chainTargetId ? null : (
-          node.children
-            .filter((c) => String(c.id) === chainNext?.get(id))
-            .map((child) => renderNode(child, depth + 1))
-        )
-      ) : (
-        node.children.map((child) => renderNode(child, depth + 1))
-      )}
-            </Box>
-          </Collapse>
-        )}
+ {hasChildren && (
+  <Collapse in={isOpen} timeout="auto" unmountOnExit>
+    <Box sx={{ pl: 2 }}>
+      {(() => {
+        const total = node.children.length;
+        const showAll = showAllChildrenIds.has(id);
+
+        // Always show at least this many without expanding
+        const CHILD_PREVIEW_COUNT = 2;
+
+        // What to render
+        const visible = showAll
+          ? node.children
+          : node.children.slice(0, CHILD_PREVIEW_COUNT);
+
+        // For the "View more (N)" count
+        const remaining = Math.max(total - CHILD_PREVIEW_COUNT, 0);
+
+        return (
+          <>
+            {visible.map((child) => renderNode(child, depth + 1))}
+
+            {/* Show the toggle whenever there are more than the preview count */}
+            {total > CHILD_PREVIEW_COUNT && (
+              <Box sx={{ mt: 1, ml: 6 }}>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleChildrenView(id); // flips between show all / show preview
+                  }}
+                >
+                  {showAll ? "View less" : `View more (${remaining})`}
+                </Button>
+              </Box>
+            )}
+          </>
+        );
+      })()}
+    </Box>
+  </Collapse>
+)}
+
       </Box>
     );
   }
