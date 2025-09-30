@@ -122,31 +122,40 @@ const isAllCollapsed = expanded.size === 0;
       <Box key={id} sx={{ pl: depth * 2 }}>
         <Stack direction="row" alignItems="center" spacing={1}>
           {/* chevron (kept separate for accessibility) */}
-          {hasChildren ? (
-            <IconButton
-              size="small"
-              onClick={() => toggleNode(id, hasChildren)}
-              aria-label={isOpen ? "collapse" : "expand"}
-            >
-              {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-            </IconButton>
-          ) : (
-            <Box sx={{ width: 40 }} />
-          )}
+         {hasChildren ? (
+  <IconButton
+    size="small"
+    onClick={(e) => {
+      e.stopPropagation();              // keep the click local to the arrow
+      setSelectedId(node.id);           // ← focus this card
+      toggleNode(id, hasChildren);      // expand / collapse
+      // optional: center it in view when you expand/collapse
+      // nodeRefs.current[node.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }}
+    aria-label={isOpen ? "collapse" : "expand"}
+    aria-pressed={isOpen}
+  >
+    {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+  </IconButton>
+) : (
+  <Box sx={{ width: 40 }} />
+)}
 
           {/* card (also toggles if manager) */}
-        <Box
+       <Box
   ref={el => (nodeRefs.current[node.id] = el)}
-  onClick={() => setSelectedId(node.id)}              // ← no toggle here
+  onClick={() => setSelectedId(node.id)}          // select only
   role="button"
   tabIndex={0}
-  onKeyDown={(e) => {                                 // keyboard support
+  aria-selected={selectedId === node.id}
+  onKeyDown={(e) => {
     if (e.key === "Enter" || e.key === " ") setSelectedId(node.id);
   }}
   sx={{ flex: 1, cursor: "pointer" }}
 >
-            <EmployeeCard emp={node} query={query} selected={selectedId === node.id} />
-          </Box>
+  <EmployeeCard emp={node} query={query} selected={selectedId === node.id} />
+</Box>
+
         </Stack>
 
         {/* children */}

@@ -27,6 +27,7 @@ function EmployeeCard({ emp, query, selected = false }) {
         width: "100%",
         borderColor: selected ? "primary.main" : "divider",
         borderWidth: selected ? 2 : 1,
+        boxShadow: selected ? 2 : 0,
         bgcolor: selected ? "action.hover" : "background.paper",
         transition: "background-color 120ms ease, border-color 120ms ease",
       }}
