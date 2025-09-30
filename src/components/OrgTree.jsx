@@ -24,7 +24,7 @@ const [openEdit, setOpenEdit] = useState(false);
 const [editTarget, setEditTarget] = useState(null); // the employee being edited
 const [editForm, setEditForm] = useState({ name: "", role: "", department: "", managerId: "" });
 const [filterTargetId, setFilterTargetId] = useState(null); // when set → show only path to this id
-
+const didDefaultExpand = useRef(false);
   const nodeRefs = useRef({}); // id -> element
 
 
@@ -131,6 +131,17 @@ function deleteEmp(emp) {
 
   const byId = useMemo(() => new Map(allNodes.map(n => [String(n.id), n])), [allNodes]);
   
+useEffect(() => {
+  if (didDefaultExpand.current) return;          // run only once
+  if (!forest.length || filterTargetId) return;  // skip if filtering on a search
+
+  const next = new Set(expanded);
+  // expand ALL root nodes (usually just the CEO)
+  forest.forEach((root) => next.add(String(root.id)));
+
+  setExpanded(next);
+  didDefaultExpand.current = true;
+}, [forest, filterTargetId]);  
 
   // Build the chain of ids from ROOT → ... → TARGET (when filtering)
 const chainIds = useMemo(() => {
