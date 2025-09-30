@@ -23,6 +23,7 @@ const [form, setForm] = useState({ name: "", role: "", department: "", managerId
 const [openEdit, setOpenEdit] = useState(false);
 const [editTarget, setEditTarget] = useState(null); // the employee being edited
 const [editForm, setEditForm] = useState({ name: "", role: "", department: "", managerId: "" });
+const [filterTargetId, setFilterTargetId] = useState(null); // when set → show only path to this id
 
   const nodeRefs = useRef({}); // id -> element
 
@@ -129,6 +130,33 @@ function deleteEmp(emp) {
   }, [forest]);
 
   const byId = useMemo(() => new Map(allNodes.map(n => [String(n.id), n])), [allNodes]);
+  
+
+  // Build the chain of ids from ROOT → ... → TARGET (when filtering)
+const chainIds = useMemo(() => {
+  if (filterTargetId == null || !byId.size) return null;
+  const ids = [];
+  let cur = byId.get(String(filterTargetId));
+  while (cur) {
+    ids.push(String(cur.id));
+    if (cur.managerId == null) break;
+    cur = byId.get(String(cur.managerId));
+  }
+  return ids.reverse(); // now root..target
+}, [filterTargetId, byId]);
+
+const chainSet = useMemo(() => (chainIds ? new Set(chainIds) : null), [chainIds]);
+
+// Map each chain node -> its NEXT child on the path (to render only that child)
+const chainNext = useMemo(() => {
+  if (!chainIds) return null;
+  const m = new Map();
+  for (let i = 0; i < chainIds.length - 1; i++) m.set(chainIds[i], chainIds[i + 1]);
+  return m;
+}, [chainIds]);
+
+const chainTargetId = chainIds?.[chainIds.length - 1] || null;
+
 
   const expandableIds = useMemo(() => {
     return allNodes.filter(n => n.children?.length).map(n => String(n.id));
@@ -161,16 +189,18 @@ const isAllCollapsed = expanded.size === 0;
 
   // 5) On focus submit (Enter from search)
   useEffect(() => {
-    if (!focusName || !allNodes.length) return;
+    if (!focusName || !allNodes.length){ setFilterTargetId(null);return;}
     const q = focusName.toLowerCase();
     const target = allNodes.find(e => (e.name || "").toLowerCase().includes(q));
     if (target) {
       setSelectedId(target.id);
       expandPathTo(target.id);
+      setFilterTargetId(target.id); // enable focus-only mode
       const el = nodeRefs.current[target.id];
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     } else {
       setSelectedId(null);
+      setFilterTargetId(null);
     }
   }, [focusName, allNodes]); // only when user submits
 
@@ -225,7 +255,9 @@ function handleCreateSubmit(e) {
     const id = String(node.id);
     const hasChildren = !!(node.children && node.children.length);
     const isOpen = expanded.has(id);
-
+  
+     // If we are in focus-only mode and this node is NOT on the path, hide it.
+       if (chainSet && !chainSet.has(id)) return null;
 
 
 
@@ -276,7 +308,16 @@ function handleCreateSubmit(e) {
         {hasChildren && (
           <Collapse in={isOpen} timeout="auto" unmountOnExit>
             <Box sx={{ pl: 2 }}>
-              {node.children.map(child => renderNode(child, depth + 1))}
+              
+      {chainSet ? (
+        id === chainTargetId ? null : (
+          node.children
+            .filter((c) => String(c.id) === chainNext?.get(id))
+            .map((child) => renderNode(child, depth + 1))
+        )
+      ) : (
+        node.children.map((child) => renderNode(child, depth + 1))
+      )}
             </Box>
           </Collapse>
         )}
