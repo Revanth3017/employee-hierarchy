@@ -39,14 +39,22 @@ export default function App() {
             Employee Hierarchy
           </Typography>
           {showSearch && (
-           <Box sx={{ flexBasis: { xs: "100%", sm: "auto" }, flexGrow: { xs: 1, sm: 0 } }}>
-             <SearchBar
-               value={query}
-               onChange={setQuery}
-               onSubmit={() => setFocusName(query)}
-               onClear={() => { setQuery(""); setFocusName(""); }}
-             />
-           </Box>
+          <Box sx={{ flexBasis: { xs: "100%", sm: "auto" }, flexGrow: { xs: 1, sm: 0 } }}>
+          <SearchBar
+            value={query}
+            onChange={(v) => {
+              setQuery(v);         // live highlight + count
+              setFocusName(v);     // ⬅️ trigger expand-to-chain while typing
+            }}
+            // onSubmit is no longer needed, but harmless if you keep it
+            onClear={() => {
+              setQuery("");
+              setFocusName("");    // return to full chart instantly
+            }}
+          />
+        </Box>
+
+        
          )}
        
 
