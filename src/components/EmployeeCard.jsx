@@ -30,10 +30,12 @@ function EmployeeCard({ emp, query, selected = false, canEdit = false, onEdit, o
       variant="outlined"
       sx={{
         width: "100%",
-        borderColor: selected ? "primary.main" : "divider",
-        borderWidth: selected ? 2 : 1,
-        bgcolor: selected ? "action.selected" : "background.paper",
-        boxShadow: selected ? 2 : 0,
+          borderColor: (theme) =>
+     selected ? theme.palette.primary.main :
+     theme.palette.mode === "dark" ? theme.palette.grey[800] : theme.palette.divider,
+   borderWidth: selected ? 2 : 1,
+   bgcolor: selected ? "action.selected" : "background.paper",
+   boxShadow: selected ? 3 : 1,
         transition: "background-color 120ms, border-color 120ms, box-shadow 120ms",
       }}
     >
