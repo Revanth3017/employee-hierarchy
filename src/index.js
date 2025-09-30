@@ -1,16 +1,20 @@
+// src/index.js
 import React from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot } from "react-dom/client";   // ← correct import
 import App from "./App";
-import "./App.css";
-
-import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeModeProvider } from "./context/ThemeContext";
+import { BrowserRouter } from "react-router-dom";
+import "./index.css";
 
-createRoot(document.getElementById("root")).render(
+const container = document.getElementById("root");
+const root = createRoot(container);
+
+root.render(
   <React.StrictMode>
     <ThemeModeProvider>
-      <CssBaseline />
-      <App />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </ThemeModeProvider>
   </React.StrictMode>
 );

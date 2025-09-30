@@ -4,16 +4,20 @@ import {
 } from "@mui/material";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
-
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import useAuth from "./hooks/useAuth";
 import LoginForm from "./components/LoginForm";
 import SearchBar from "./components/SearchBar";
 import OrgTree from "./components/OrgTree";
 import { useThemeMode } from "./context/ThemeContext";
+import EmployeeProfile from "./pages/EmployeeProfile";
 
 export default function App() {
   const { user, isAuthenticated, login, logout } = useAuth();
   const { mode, toggle } = useThemeMode();
+
+   const location = useLocation();
+    const showSearch = location.pathname === "/";
 
   const [query, setQuery] = useState("");       // live typing (highlight + count)
   const [focusName, setFocusName] = useState(""); // submitted value (expand + scroll)
@@ -34,16 +38,17 @@ export default function App() {
           <Typography variant="h6" sx={{ flexGrow: 1, minWidth: 180 }}>
             Employee Hierarchy
           </Typography>
-
-          {/* Search: full width on mobile, inline on larger screens */}
-          <Box sx={{ flexBasis: { xs: "100%", sm: "auto" }, flexGrow: { xs: 1, sm: 0 } }}>
-            <SearchBar
-              value={query}
-              onChange={setQuery}
-              onSubmit={() => setFocusName(query)}
-              onClear={() => { setQuery(""); setFocusName(""); }}
-            />
-          </Box>
+          {showSearch && (
+           <Box sx={{ flexBasis: { xs: "100%", sm: "auto" }, flexGrow: { xs: 1, sm: 0 } }}>
+             <SearchBar
+               value={query}
+               onChange={setQuery}
+               onSubmit={() => setFocusName(query)}
+               onClear={() => { setQuery(""); setFocusName(""); }}
+             />
+           </Box>
+         )}
+       
 
           {/* Theme toggle */}
           <Tooltip title={mode === "light" ? "Switch to dark" : "Switch to light"}>
@@ -61,7 +66,14 @@ export default function App() {
       </AppBar>
 
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
-        <OrgTree query={query} focusName={focusName} isAdmin={user?.isAdmin}/>
+         <Routes>
+         <Route
+           path="/"
+           element={<OrgTree query={query} focusName={focusName} isAdmin={user?.isAdmin} />}
+         />
+         <Route path="/profile/:id" element={<EmployeeProfile />} />
+         <Route path="*" element={<Navigate to="/" replace />} />
+       </Routes>
       </Container>
     </>
   );

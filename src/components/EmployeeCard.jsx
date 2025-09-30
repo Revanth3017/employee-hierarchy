@@ -1,8 +1,10 @@
 // src/components/EmployeeCard.jsx
 import React from "react";
-import { Card, CardContent, Stack, Typography, Box, IconButton, Tooltip } from "@mui/material";
+import { Card, CardContent, Stack, Typography, Box, IconButton, Tooltip,Button } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { Link as RouterLink } from "react-router-dom";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 
 function highlight(text, query) {
   if (!query) return text;
@@ -52,6 +54,17 @@ function EmployeeCard({ emp, query, selected = false, canEdit = false, onEdit, o
                 {emp.department}
               </Typography>
             )}
+            <Button
+  size="small"
+  component={RouterLink}
+  to={`/profile/${emp.id}`}
+  endIcon={<ArrowForwardIosIcon fontSize="inherit" />}
+  onClick={(e) => e.stopPropagation()}  // don’t trigger card selection
+  sx={{ alignSelf: "flex-start", mt: 0.5, px: 0, textTransform: "none" }}
+>
+  View profile
+</Button>
+
           </Stack>
 
           {/* Right: admin actions */}
