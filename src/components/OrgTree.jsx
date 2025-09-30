@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Box, Button, ButtonGroup, Collapse,
-  IconButton, LinearProgress, Stack, Typography
+  IconButton, LinearProgress, Stack, Typography,Dialog, DialogTitle, DialogContent, DialogActions, TextField
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -10,32 +10,48 @@ import EmployeeCard from "./EmployeeCard";
 import EMPLOYEES from "../data/employees.json";
 import { normalizeEmployees, buildForest } from "../utils/buildTree";
 
-export default function OrgTree({ query = "", focusName = "" }) {
+export default function OrgTree({ query = "", focusName = "" ,isAdmin = false }) {
   const [data, setData] = useState([]);
   const [expanded, setExpanded] = useState(() => new Set()); // Set<string>
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+const [openCreate, setOpenCreate] = useState(false);
+const [form, setForm] = useState({ name: "", role: "", department: "", managerId: "" });
+
   const nodeRefs = useRef({}); // id -> element
 
 
+const STORAGE_KEY = "employees";
 
-
-  // 1) Load + normalize
-  // 1) Load + normalize (from src, no fetch)
 useEffect(() => {
   try {
     setLoading(true);
     setErr("");
-    const list = normalizeEmployees(EMPLOYEES); // ← use imported data
-    setData(list);
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const base = stored ? JSON.parse(stored) : EMPLOYEES;
+    setData(normalizeEmployees(base));
+    // seed storage on first run
+    if (!stored) localStorage.setItem(STORAGE_KEY, JSON.stringify(base));
   } catch (e) {
-    setErr("Failed to load employees from src/data/employees.json");
+    setErr("Failed to load employees from localStorage");
+    setData(normalizeEmployees(EMPLOYEES));
   } finally {
     setLoading(false);
   }
 }, []);
+
+
+
+
+function updateEmployees(updater) {
+  setData(prev => {
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    return next;
+  });
+}
 
 
   // 2) Build forest and helpers
@@ -107,6 +123,38 @@ const isAllCollapsed = expanded.size === 0;
   // 7) Expand/Collapse all
   function expandAll()   { setExpanded(new Set(expandableIds)); }
   function collapseAll() { setExpanded(new Set()); }
+
+  function nextId() {
+  // pick max numeric id + 1 (fallback 1)
+  const nums = data.map(d => Number(d.id)).filter(n => !Number.isNaN(n));
+  return (nums.length ? Math.max(...nums) : 0) + 1;
+}
+
+function handleCreateSubmit(e) {
+  e.preventDefault();
+  const id = nextId();
+  const managerId =
+    form.managerId === "" ? null : isNaN(Number(form.managerId)) ? form.managerId : Number(form.managerId);
+
+  const newEmp = {
+    id,
+    name: form.name.trim(),
+    role: form.role.trim(),
+    department: form.department.trim(),
+    managerId
+  };
+
+  // add to in-memory dataset; tree rebuilds from state
+   updateEmployees(prev => [...prev, newEmp]);
+
+  // focus the new employee and expand its parent chain (if any)
+  setSelectedId(id);
+  if (managerId != null) expandPathTo(id);
+
+  setOpenCreate(false);
+  setForm({ name: "", role: "", department: "", managerId: "" });
+}
+
 
   // 8) Renderer (pure React, no TreeItem)
   function renderNode(node, depth = 0) {
@@ -213,9 +261,58 @@ const isAllCollapsed = expanded.size === 0;
   </Button>
 </ButtonGroup>
 
+
+ {isAdmin && (
+   <Button
+     size="small"
+     variant="contained"
+     onClick={() => setOpenCreate(true)}
+   >
+     Create User
+   </Button>
+ )}
+
+
+
       </Stack>
 
       {forest.map(root => renderNode(root))}
+   
+   <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="sm">
+  <DialogTitle>Create User (Employee)</DialogTitle>
+  <DialogContent>
+    <Stack component="form" onSubmit={handleCreateSubmit} spacing={1.5} sx={{ mt: 1 }}>
+      <TextField
+        label="Name" value={form.name} onChange={(e)=>setForm(f=>({...f, name:e.target.value}))}
+        required autoFocus
+      />
+      <TextField
+        label="Role" value={form.role} onChange={(e)=>setForm(f=>({...f, role:e.target.value}))}
+        required
+      />
+      <TextField
+        label="Department" value={form.department} onChange={(e)=>setForm(f=>({...f, department:e.target.value}))}
+        required
+      />
+      <TextField
+        label="Manager ID (optional)"
+        placeholder="e.g. 1"
+        value={form.managerId}
+        onChange={(e)=>setForm(f=>({...f, managerId:e.target.value}))}
+        helperText="Leave blank for top-level (no manager)"
+      />
+      {/* Hidden submit for Enter key inside fields */}
+      <button type="submit" style={{ display:"none" }} />
+    </Stack>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setOpenCreate(false)}>Cancel</Button>
+    <Button onClick={handleCreateSubmit} variant="contained">Create</Button>
+  </DialogActions>
+</Dialog>
+
+   
+  
     </Box>
   );
 }

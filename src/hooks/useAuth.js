@@ -15,14 +15,22 @@ export default function useAuth() {
 
 
 
-async function login(username, password) {
-  // no fetch now — data is bundled
-  const users = USERS;
-  const found = users.find(u => u.username === username && u.password === password);
-  if (!found) throw new Error("Invalid credentials");
-  setUser({ username: found.username, name: found.name }); // avoid storing password
-  localStorage.setItem("user", JSON.stringify({ username: found.username, name: found.name }));
-}
+  async function login(username, password) {
+    const u = USERS.find(
+      x => x.username.toLowerCase() === String(username).toLowerCase()
+    );
+    if (!u) throw new Error("Invalid User");                  // clearer message
+
+    if (u.password !== password) throw new Error("Invalid password");
+
+    const session = {
+      username: u.username,
+      name: u.name,
+      isAdmin: !!u.isAdmin || u.username.toLowerCase() === "admin"
+    };
+    setUser(session);
+    localStorage.setItem("user", JSON.stringify(session));
+  }
 
 
   function logout() {

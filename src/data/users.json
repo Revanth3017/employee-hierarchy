@@ -1,23 +1,5 @@
 [
-  {
-    "id": 1,
-    "username": "admin",
-    "password": "admin123",
-    "name": "System Admin",
-    "role": "Administrator"
-  },
-  {
-    "id": 2,
-    "username": "johndoe",
-    "password": "password123",
-    "name": "John Doe",
-    "role": "Manager"
-  },
-  {
-    "id": 3,
-    "username": "janedoe",
-    "password": "password123",
-    "name": "Jane Doe",
-    "role": "Employee"
-  }
+  { "username": "admin", "name": "Admin", "password": "pass123", "isAdmin": true },
+  { "username": "alice", "name": "Alice Johnson", "password": "pass123" },
+  { "username": "bob",   "name": "Bob Smith",     "password": "pass123" }
 ]

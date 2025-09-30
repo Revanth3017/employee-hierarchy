@@ -61,7 +61,7 @@ export default function App() {
       </AppBar>
 
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
-        <OrgTree query={query} focusName={focusName} />
+        <OrgTree query={query} focusName={focusName} isAdmin={user?.isAdmin}/>
       </Container>
     </>
   );
