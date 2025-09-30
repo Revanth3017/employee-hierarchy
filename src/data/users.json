@@ -1,5 +1,5 @@
 [
   { "username": "admin", "name": "Admin", "password": "pass123", "isAdmin": true },
-  { "username": "alice", "name": "Alice Johnson", "password": "pass123" },
+  { "username": "janedoe", "name": "Alice Johnson", "password": "pass123" },
   { "username": "bob",   "name": "Bob Smith",     "password": "pass123" }
 ]

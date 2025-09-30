@@ -20,6 +20,10 @@ export default function OrgTree({ query = "", focusName = "" ,isAdmin = false })
 const [openCreate, setOpenCreate] = useState(false);
 const [form, setForm] = useState({ name: "", role: "", department: "", managerId: "" });
 
+const [openEdit, setOpenEdit] = useState(false);
+const [editTarget, setEditTarget] = useState(null); // the employee being edited
+const [editForm, setEditForm] = useState({ name: "", role: "", department: "", managerId: "" });
+
   const nodeRefs = useRef({}); // id -> element
 
 
@@ -52,6 +56,66 @@ function updateEmployees(updater) {
     return next;
   });
 }
+
+function beginEdit(emp) {
+  setEditTarget(emp);
+  setEditForm({
+    name: emp.name || "",
+    role: emp.role || "",
+    department: emp.department || "",
+    managerId: emp.managerId == null ? "" : String(emp.managerId),
+  });
+  setOpenEdit(true);
+}
+
+function submitEdit(e) {
+  e?.preventDefault?.();
+  if (!editTarget) return;
+
+  const managerId =
+    editForm.managerId === "" ? null :
+    (isNaN(Number(editForm.managerId)) ? editForm.managerId : Number(editForm.managerId));
+
+  updateEmployees(prev =>
+    prev.map(p =>
+      p.id === editTarget.id
+        ? {
+            ...p,
+            name: editForm.name.trim(),
+            role: editForm.role.trim(),
+            department: editForm.department.trim(),
+            managerId,
+          }
+        : p
+    )
+  );
+
+  setSelectedId(editTarget.id);
+  expandPathTo(editTarget.id);
+  setOpenEdit(false);
+  setEditTarget(null);
+}
+
+
+function deleteEmp(emp) {
+  const ok = window.confirm(
+    `Delete "${emp.name}"?\n\nDirect reports will be re-attached to this person's manager.`
+  );
+  if (!ok) return;
+
+  updateEmployees(prev => {
+    const parentId = emp.managerId ?? null;
+    // Remove the target
+    let next = prev.filter(x => x.id !== emp.id);
+    // Reattach children to the deleted employee's manager
+    next = next.map(x => (x.managerId === emp.id ? { ...x, managerId: parentId } : x));
+    return next;
+  });
+
+  // Clear selection if it was the deleted one
+  setSelectedId(s => (s === emp.id ? null : s));
+}
+
 
 
   // 2) Build forest and helpers
@@ -201,7 +265,9 @@ function handleCreateSubmit(e) {
   }}
   sx={{ flex: 1, cursor: "pointer" }}
 >
-  <EmployeeCard emp={node} query={query} selected={selectedId === node.id} />
+  <EmployeeCard emp={node} query={query} selected={selectedId === node.id} canEdit={isAdmin}
+    onEdit={() => beginEdit(node)}
+    onDelete={() => deleteEmp(node)}/>
 </Box>
 
         </Stack>
@@ -308,6 +374,48 @@ function handleCreateSubmit(e) {
   <DialogActions>
     <Button onClick={() => setOpenCreate(false)}>Cancel</Button>
     <Button onClick={handleCreateSubmit} variant="contained">Create</Button>
+  </DialogActions>
+</Dialog>
+
+   
+
+
+<Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
+  <DialogTitle>Edit Employee</DialogTitle>
+  <DialogContent>
+    <Stack component="form" onSubmit={submitEdit} spacing={1.5} sx={{ mt: 1 }}>
+      <TextField
+        label="Name"
+        value={editForm.name}
+        onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+        required
+        autoFocus
+      />
+      <TextField
+        label="Role"
+        value={editForm.role}
+        onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value }))}
+        required
+      />
+      <TextField
+        label="Department"
+        value={editForm.department}
+        onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
+        required
+      />
+      <TextField
+        label="Manager ID (optional)"
+        placeholder="e.g. 1"
+        value={editForm.managerId}
+        onChange={(e) => setEditForm(f => ({ ...f, managerId: e.target.value }))}
+        helperText="Leave blank for top-level (no manager)"
+      />
+      <button type="submit" style={{ display: "none" }} />
+    </Stack>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setOpenEdit(false)}>Cancel</Button>
+    <Button onClick={submitEdit} variant="contained">Save</Button>
   </DialogActions>
 </Dialog>
 
