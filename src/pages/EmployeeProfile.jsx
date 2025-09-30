@@ -49,7 +49,19 @@ export default function EmployeeProfile() {
         <Button component={RouterLink} to="/" variant="outlined">← Back to chart</Button>
       </Stack>
 
-      <Card sx={{ mb: 3 }}>
+      <Card  variant="outlined" sx={{
+     mb: 3,
+     backgroundColor: "background.paper",
+     borderColor: (theme) =>
+       theme.palette.mode === "dark" ? theme.palette.grey[800] : theme.palette.divider,
+     boxShadow: 0,
+   }}>
+
+
+
+
+
+
         <CardContent>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
             <Box
@@ -86,10 +98,20 @@ export default function EmployeeProfile() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card   variant="outlined"
+   sx={{
+     backgroundColor: "background.paper",
+     borderColor: (theme) =>
+       theme.palette.mode === "dark" ? theme.palette.grey[800] : theme.palette.divider,
+     boxShadow: 0,
+   }}>
         <CardContent>
           <Typography variant="subtitle1" gutterBottom>Direct reports</Typography>
-          <Divider sx={{ mb: 2 }} />
+          <Divider  sx={{
+     mb: 2,
+     borderColor: (theme) =>
+       theme.palette.mode === "dark" ? theme.palette.grey[800] : theme.palette.divider,
+   }} />
           {reports.length ? (
             <Stack direction="row" flexWrap="wrap" gap={1}>
               {reports.map(r => (
