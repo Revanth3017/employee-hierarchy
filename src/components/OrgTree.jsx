@@ -1,9 +1,9 @@
 // src/components/OrgTree.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert, Box, Button, ButtonGroup, Collapse,
-  IconButton, LinearProgress, Stack, Typography,Dialog, DialogTitle, DialogContent, DialogActions, TextField
-} from "@mui/material";
+ Alert, Box, Button, ButtonGroup, Collapse, IconButton,
+         LinearProgress, Stack, Typography, TextField, Dialog, DialogTitle,
+         DialogContent, DialogActions, MenuItem } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import EmployeeCard from "./EmployeeCard";
@@ -18,6 +18,8 @@ export default function OrgTree({ query = "", focusName = "" ,isAdmin = false })
   const [err, setErr] = useState("");
 
 const [openCreate, setOpenCreate] = useState(false);
+
+const [createOpen, setCreateOpen] = useState(false);
 const [form, setForm] = useState({ name: "", role: "", department: "", managerId: "" });
 
 const [openEdit, setOpenEdit] = useState(false);
@@ -26,6 +28,13 @@ const [editForm, setEditForm] = useState({ name: "", role: "", department: "", m
 const [filterTargetId, setFilterTargetId] = useState(null); // when set → show only path to this id
 const didDefaultExpand = useRef(false);
   const nodeRefs = useRef({}); // id -> element
+const [errors, setErrors] = useState({});
+const managerOptions = useMemo(
+  () => data.map(e => ({ id: String(e.id), label: `${e.id} — ${e.name}` })),
+  [data]
+);
+// If you specifically want only 1,2,3:
+// const managerOptions = [{id:"1",label:"1 — Alice Johnson"}, {id:"2",label:"2 — Bob Smith"}, {id:"3",label:"3 — Carol White"}];
 
 
   // Show-all toggle per manager id (default: show only first 2)
@@ -137,6 +146,33 @@ function deleteEmp(emp) {
 
   setSelectedId(prev => (prev && idsToRemove.has(prev) ? null : prev));
 }
+
+// Suggested option lists
+const ROLE_OPTIONS = [
+  "Accountant",
+  "Backend Engineer",
+  "Cloud Engineer",
+  "Data Engineer",
+  "DevOps Engineer",
+  "Engineering Manager",
+  "Finance Manager",
+  "Frontend Engineer",
+  "Full-Stack Engineer",
+  "Machine Learning Engineer",
+  "Mobile Engineer (Android)",
+  "Mobile Engineer (iOS)",
+  "Operations Associate",
+  "Operations Manager",
+  "QA Engineer",
+  "QA Manager",
+  "Security Engineer",
+  "Site Reliability Engineer",
+  "Software Architect",
+  "Software Engineer",
+];
+
+
+const DEPT_OPTIONS = ["Technology", "Finance", "Operations", "Executive"];
 
 
 // Returns a Set of ids to remove: the employee and all their descendants.
@@ -480,35 +516,77 @@ function renderNode(node, depth = 0) {
       {forest.map(root => renderNode(root))}
    
    <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="sm">
-  <DialogTitle>Create User (Employee)</DialogTitle>
-  <DialogContent>
-    <Stack component="form" onSubmit={handleCreateSubmit} spacing={1.5} sx={{ mt: 1 }}>
-      <TextField
-        label="Name" value={form.name} onChange={(e)=>setForm(f=>({...f, name:e.target.value}))}
-        required autoFocus
-      />
-      <TextField
-        label="Role" value={form.role} onChange={(e)=>setForm(f=>({...f, role:e.target.value}))}
-        required
-      />
-      <TextField
-        label="Department" value={form.department} onChange={(e)=>setForm(f=>({...f, department:e.target.value}))}
-        required
-      />
-      <TextField
-        label="Manager ID (optional)"
-        placeholder="e.g. 1"
-        value={form.managerId}
-        onChange={(e)=>setForm(f=>({...f, managerId:e.target.value}))}
-        helperText="Leave blank for top-level (no manager)"
-      />
-      {/* Hidden submit for Enter key inside fields */}
-      <button type="submit" style={{ display:"none" }} />
-    </Stack>
+   <DialogTitle>Create User (Employee)</DialogTitle>
+  <DialogContent dividers>
+    {/* Name (free text) */}
+    <TextField
+      label="Name *"
+      fullWidth
+      margin="normal"
+      value={form.name}
+      onChange={(e) => setForm({ ...form, name: e.target.value })}
+      error={!!errors.name}
+      helperText={errors.name}
+    />
+
+    {/* Role (select) */}
+    <TextField
+      select
+      label="Role *"
+      fullWidth
+      margin="normal"
+      value={form.role}
+      onChange={(e) => setForm({ ...form, role: e.target.value })}
+      error={!!errors.role}
+      helperText={errors.role}
+    >
+      {ROLE_OPTIONS.map((r) => (
+        <MenuItem key={r} value={r}>
+          {r}
+        </MenuItem>
+      ))}
+    </TextField>
+
+    {/* Department (select) */}
+    <TextField
+      select
+      label="Department *"
+      fullWidth
+      margin="normal"
+      value={form.department}
+      onChange={(e) => setForm({ ...form, department: e.target.value })}
+      error={!!errors.department}
+      helperText={errors.department}
+    >
+      {DEPT_OPTIONS.map((d) => (
+        <MenuItem key={d} value={d}>
+          {d}
+        </MenuItem>
+      ))}
+    </TextField>
+
+    {/* Manager ID (select, REQUIRED) */}
+    <TextField
+      select
+      label="Manager ID *"
+      fullWidth
+      margin="normal"
+      value={form.managerId}
+      onChange={(e) => setForm({ ...form, managerId: e.target.value })}
+      error={!!errors.managerId}
+      helperText={errors.managerId || "Choose the direct manager"}
+    >
+      {managerOptions.map((m) => (
+        <MenuItem key={m.id} value={m.id}>
+          {m.label}
+        </MenuItem>
+      ))}
+    </TextField>
   </DialogContent>
+
   <DialogActions>
-    <Button onClick={() => setOpenCreate(false)}>Cancel</Button>
-    <Button onClick={handleCreateSubmit} variant="contained">Create</Button>
+    <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+    <Button variant="contained" onClick={handleCreateSubmit}>Create</Button>
   </DialogActions>
 </Dialog>
 
