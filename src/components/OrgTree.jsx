@@ -31,6 +31,9 @@ const didDefaultExpand = useRef(false);
   // Show-all toggle per manager id (default: show only first 2)
 const [showAllChildrenIds, setShowAllChildrenIds] = useState(() => new Set());
 
+// consider any non-empty query as "searching" (chain-only rendering)
+const isSearching = (query ?? "").trim().length > 0;
+
 // how many children to preview per manager
 const CHILD_PREVIEW_COUNT = 2;
 
@@ -115,21 +118,51 @@ function submitEdit(e) {
 
 function deleteEmp(emp) {
   const ok = window.confirm(
-    `Delete "${emp.name}"?\n\nDirect reports will be re-attached to this person's manager.`
+    `Delete "${emp.name}" and everyone who reports to them? This cannot be undone.`
   );
   if (!ok) return;
 
-  updateEmployees(prev => {
-    const parentId = emp.managerId ?? null;
-    // Remove the target
-    let next = prev.filter(x => x.id !== emp.id);
-    // Reattach children to the deleted employee's manager
-    next = next.map(x => (x.managerId === emp.id ? { ...x, managerId: parentId } : x));
+  // 1) Compute the whole branch to remove using the current list
+  const idsToRemove = getDescendantIds(data, emp.id);
+
+  // 2) Remove that entire set from the employees list (and persist via your updater)
+  updateEmployees(prev => prev.filter(e => !idsToRemove.has(e.id)));
+
+  // 3) Clean up UI state
+  setExpanded(prev => {
+    const next = new Set(prev);
+    idsToRemove.forEach(id => next.delete(String(id)));
     return next;
   });
 
-  // Clear selection if it was the deleted one
-  setSelectedId(s => (s === emp.id ? null : s));
+  setSelectedId(prev => (prev && idsToRemove.has(prev) ? null : prev));
+}
+
+
+// Returns a Set of ids to remove: the employee and all their descendants.
+function getDescendantIds(list, rootId) {
+  // Build manager -> [childIds] map
+  const childrenByManager = new Map();
+  for (const e of list) {
+    const key = e.managerId ?? null;
+    if (!childrenByManager.has(key)) childrenByManager.set(key, []);
+    childrenByManager.get(key).push(e.id);
+  }
+
+  const toDelete = new Set([rootId]);
+  const stack = [rootId];
+
+  while (stack.length) {
+    const cur = stack.pop();
+    const kids = childrenByManager.get(cur) || [];
+    for (const kidId of kids) {
+      if (!toDelete.has(kidId)) {
+        toDelete.add(kidId);
+        stack.push(kidId);
+      }
+    }
+  }
+  return toDelete;
 }
 
 
@@ -277,107 +310,114 @@ function handleCreateSubmit(e) {
 
 
   // 8) Renderer (pure React, no TreeItem)
-  function renderNode(node, depth = 0) {
-    const id = String(node.id);
-    const hasChildren = !!(node.children && node.children.length);
-    const isOpen = expanded.has(id);
-  
-     // If we are in focus-only mode and this node is NOT on the path, hide it.
-       if (chainSet && !chainSet.has(id)) return null;
+function renderNode(node, depth = 0) {
+  const id = String(node.id);
+  const hasChildren = !!(node.children && node.children.length);
+  const isOpen = expanded.has(id);
 
+  // If we are in focus-only (chain) mode and this node is NOT on the path, hide it.
+  if (chainSet && !chainSet.has(id)) return null;
 
+  return (
+    <Box key={id} sx={{ pl: depth * 2 }}>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        {/* Chevron only expands/collapses; it also focuses the card */}
+        {hasChildren ? (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedId(node.id);           // focus this card
+              toggleNode(id, hasChildren);      // expand/collapse
+              // Optionally center in view:
+              // nodeRefs.current[node.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+            aria-label={isOpen ? "collapse" : "expand"}
+            aria-pressed={isOpen}
+          >
+            {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+          </IconButton>
+        ) : (
+          <Box sx={{ width: 40 }} />
+        )}
 
+        {/* Card click = focus only */}
+        <Box
+          ref={(el) => (nodeRefs.current[node.id] = el)}
+          onClick={() => setSelectedId(node.id)}
+          role="button"
+          tabIndex={0}
+          aria-selected={selectedId === node.id}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") setSelectedId(node.id);
+          }}
+          sx={{ flex: 1, cursor: "pointer" }}
+        >
+          <EmployeeCard
+            emp={node}
+            query={query}
+            selected={selectedId === node.id}
+            canEdit={isAdmin}
+            onEdit={() => beginEdit(node)}
+            onDelete={() => deleteEmp(node)}
+          />
+        </Box>
+      </Stack>
 
-    return (
-      <Box key={id} sx={{ pl: depth * 2 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          {/* chevron (kept separate for accessibility) */}
-         {hasChildren ? (
-  <IconButton
-    size="small"
-    onClick={(e) => {
-      e.stopPropagation();              // keep the click local to the arrow
-      setSelectedId(node.id);           // ← focus this card
-      toggleNode(id, hasChildren);      // expand / collapse
-      // optional: center it in view when you expand/collapse
-      // nodeRefs.current[node.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }}
-    aria-label={isOpen ? "collapse" : "expand"}
-    aria-pressed={isOpen}
-  >
-    {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-  </IconButton>
-) : (
-  <Box sx={{ width: 40 }} />
-)}
+      {/* Children */}
+      {hasChildren && (
+        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+          <Box sx={{ pl: 2 }}>
+            {(() => {
+              // ---- effective children (in chain mode show only "next" on the chain) ----
+              let effectiveChildren = node.children;
+              if (chainSet && typeof chainNext !== "undefined" && chainNext.has(id)) {
+                effectiveChildren = node.children.filter(
+                  (c) => String(c.id) === chainNext.get(id)
+                );
+              }
 
-          {/* card (also toggles if manager) */}
-       <Box
-  ref={el => (nodeRefs.current[node.id] = el)}
-  onClick={() => setSelectedId(node.id)}          // select only
-  role="button"
-  tabIndex={0}
-  aria-selected={selectedId === node.id}
-  onKeyDown={(e) => {
-    if (e.key === "Enter" || e.key === " ") setSelectedId(node.id);
-  }}
-  sx={{ flex: 1, cursor: "pointer" }}
->
-  <EmployeeCard emp={node} query={query} selected={selectedId === node.id} canEdit={isAdmin}
-    onEdit={() => beginEdit(node)}
-    onDelete={() => deleteEmp(node)}/>
-</Box>
+              const total = effectiveChildren.length;
 
-        </Stack>
+              // ---- pagination (hidden in chain mode) ----
+              const CHILD_PREVIEW_COUNT = 2;
+              const showAll = showAllChildrenIds.has(id);
+              const usePager = !chainSet && total > CHILD_PREVIEW_COUNT;
 
-        {/* children */}
- {hasChildren && (
-  <Collapse in={isOpen} timeout="auto" unmountOnExit>
-    <Box sx={{ pl: 2 }}>
-      {(() => {
-        const total = node.children.length;
-        const showAll = showAllChildrenIds.has(id);
+              const visible = usePager && !showAll
+                ? effectiveChildren.slice(0, CHILD_PREVIEW_COUNT)
+                : effectiveChildren;
 
-        // Always show at least this many without expanding
-        const CHILD_PREVIEW_COUNT = 2;
+              const remaining = Math.max(total - CHILD_PREVIEW_COUNT, 0);
 
-        // What to render
-        const visible = showAll
-          ? node.children
-          : node.children.slice(0, CHILD_PREVIEW_COUNT);
+              return (
+                <>
+                  {visible.map((child) => renderNode(child, depth + 1))}
 
-        // For the "View more (N)" count
-        const remaining = Math.max(total - CHILD_PREVIEW_COUNT, 0);
-
-        return (
-          <>
-            {visible.map((child) => renderNode(child, depth + 1))}
-
-            {/* Show the toggle whenever there are more than the preview count */}
-            {total > CHILD_PREVIEW_COUNT && (
-              <Box sx={{ mt: 1, ml: 6 }}>
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleChildrenView(id); // flips between show all / show preview
-                  }}
-                >
-                  {showAll ? "View less" : `View more (${remaining})`}
-                </Button>
-              </Box>
-            )}
-          </>
-        );
-      })()}
+                  {usePager && (
+                    <Box sx={{ mt: 1, ml: 6 }}>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleChildrenView(id); // flips showAll for this node
+                        }}
+                      >
+                        {showAll ? "View less" : `View more (${remaining})`}
+                      </Button>
+                    </Box>
+                  )}
+                </>
+              );
+            })()}
+          </Box>
+        </Collapse>
+      )}
     </Box>
-  </Collapse>
-)}
+  );
+}
 
-      </Box>
-    );
-  }
 
   // states
   if (loading) {
