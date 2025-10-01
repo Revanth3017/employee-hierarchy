@@ -20,7 +20,7 @@ export default function OrgTree({ query = "", focusName = "" ,isAdmin = false })
 const [openCreate, setOpenCreate] = useState(false);
 
 const [createOpen, setCreateOpen] = useState(false);
-const [form, setForm] = useState({ name: "", role: "", department: "", managerId: "" });
+const [form, setForm] = useState({ name: "", department: "",role: "", managerId: "" });
 
 const [openEdit, setOpenEdit] = useState(false);
 const [editTarget, setEditTarget] = useState(null); // the employee being edited
@@ -46,6 +46,56 @@ const isSearching = (query ?? "").trim().length > 0;
 // how many children to preview per manager
 const CHILD_PREVIEW_COUNT = 2;
 
+// Departments (you can add/remove freely)
+const DEPT_OPTIONS = [
+  "Technology",
+  "Finance",
+  "Operations",
+  "Executive",
+  "HR",
+  "Sales",
+  "Marketing",
+  "Support",
+  "Legal",
+  "Product",
+  "Design",
+];
+
+// Roles keyed by department
+const ROLES_BY_DEPT = {
+  Technology: [
+    "Frontend Engineer",
+    "Backend Engineer",
+    "Full-Stack Engineer",
+    "DevOps Engineer",
+    "Data Engineer",
+    "Mobile Engineer",
+    "QA Engineer",
+    "QA Manager",
+    "Engineering Manager",
+  ],
+  Finance: [
+    "Finance Manager",
+    "Accountant",
+    "Financial Analyst",
+    "Payroll Specialist",
+  ],
+  Operations: [
+    "Operations Manager",
+    "Operations Associate",
+    "Logistics Coordinator",
+  ],
+  Executive: ["CEO", "CTO", "CFO", "COO"],
+  HR: ["HR Manager", "Recruiter", "People Ops"],
+  Sales: ["Sales Manager", "Account Executive", "SDR"],
+  Marketing: ["Marketing Manager", "Content Strategist", "SEO Specialist"],
+  Support: ["Support Manager", "Support Specialist"],
+  Legal: ["Legal Counsel", "Compliance Specialist"],
+  Product: ["Product Manager", "Product Owner"],
+  Design: ["UX Designer", "UI Designer", "Design Manager"],
+};
+
+
 function toggleChildrenView(id) {
   setShowAllChildrenIds(prev => {
     const next = new Set(prev);
@@ -53,6 +103,15 @@ function toggleChildrenView(id) {
     return next;
   });
 }
+
+const openCreatemodal  = () => setCreateOpen(true);
+const closeCreate = () => setCreateOpen(false);
+
+
+const roleOptions = useMemo(() => {
+  const list = ROLES_BY_DEPT[form.department] || [];
+  return [...list].sort((a, b) => a.localeCompare(b));
+}, [form.department]);
 
 
 const STORAGE_KEY = "employees";
@@ -147,32 +206,6 @@ function deleteEmp(emp) {
   setSelectedId(prev => (prev && idsToRemove.has(prev) ? null : prev));
 }
 
-// Suggested option lists
-const ROLE_OPTIONS = [
-  "Accountant",
-  "Backend Engineer",
-  "Cloud Engineer",
-  "Data Engineer",
-  "DevOps Engineer",
-  "Engineering Manager",
-  "Finance Manager",
-  "Frontend Engineer",
-  "Full-Stack Engineer",
-  "Machine Learning Engineer",
-  "Mobile Engineer (Android)",
-  "Mobile Engineer (iOS)",
-  "Operations Associate",
-  "Operations Manager",
-  "QA Engineer",
-  "QA Manager",
-  "Security Engineer",
-  "Site Reliability Engineer",
-  "Software Architect",
-  "Software Engineer",
-];
-
-
-const DEPT_OPTIONS = ["Technology", "Finance", "Operations", "Executive"];
 
 
 // Returns a Set of ids to remove: the employee and all their descendants.
@@ -309,17 +342,7 @@ const isAllCollapsed = expanded.size === 0;
     });
   }
 
-  // 7) Expand/Collapse all
-  function expandAll()   { setExpanded(new Set(expandableIds)); }
-  function collapseAll() { setExpanded(new Set()); }
-
-  function nextId() {
-  // pick max numeric id + 1 (fallback 1)
-  const nums = data.map(d => Number(d.id)).filter(n => !Number.isNaN(n));
-  return (nums.length ? Math.max(...nums) : 0) + 1;
-}
-
-function handleCreateSubmit(e) {
+  function handleCreateSubmit(e) {
   e.preventDefault();
   const id = nextId();
   const managerId =
@@ -343,6 +366,48 @@ function handleCreateSubmit(e) {
   setOpenCreate(false);
   setForm({ name: "", role: "", department: "", managerId: "" });
 }
+
+
+  function handleCreate() {
+  const nextErrors = {};
+  if (!form.name.trim()) nextErrors.name = "Name is required";
+  if (!form.department) nextErrors.department = "Department is required";
+  if (!form.role) nextErrors.role = "Role is required";
+  if (!form.managerId) nextErrors.managerId = "Manager is required";
+
+  setErrors(nextErrors);
+  if (Object.keys(nextErrors).length) return;
+
+  const newId = Math.max(0, ...data.map((e) => Number(e.id) || 0)) + 1;
+
+  updateEmployees((prev) => [
+    ...prev,
+    {
+      id: newId,
+      name: form.name.trim(),
+      role: form.role,
+      department: form.department,
+      managerId: Number(form.managerId),
+    },
+  ]);
+
+  setCreateOpen(false);
+  setForm({ name: "", department: "", role: "", managerId: "" });
+  setErrors({});
+}
+
+
+  // 7) Expand/Collapse all
+  function expandAll()   { setExpanded(new Set(expandableIds)); }
+  function collapseAll() { setExpanded(new Set()); }
+
+  function nextId() {
+  // pick max numeric id + 1 (fallback 1)
+  const nums = data.map(d => Number(d.id)).filter(n => !Number.isNaN(n));
+  return (nums.length ? Math.max(...nums) : 0) + 1;
+}
+
+
 
 
   // 8) Renderer (pure React, no TreeItem)
@@ -503,7 +568,8 @@ function renderNode(node, depth = 0) {
    <Button
      size="small"
      variant="contained"
-     onClick={() => setOpenCreate(true)}
+    
+      onClick={openCreatemodal}
    >
      Create User
    </Button>
@@ -515,10 +581,10 @@ function renderNode(node, depth = 0) {
 
       {forest.map(root => renderNode(root))}
    
-   <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="sm">
-   <DialogTitle>Create User (Employee)</DialogTitle>
+<Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
+  <DialogTitle>Create User (Employee)</DialogTitle>
   <DialogContent dividers>
-    {/* Name (free text) */}
+    {/* Name */}
     <TextField
       label="Name *"
       fullWidth
@@ -529,32 +595,18 @@ function renderNode(node, depth = 0) {
       helperText={errors.name}
     />
 
-    {/* Role (select) */}
-    <TextField
-      select
-      label="Role *"
-      fullWidth
-      margin="normal"
-      value={form.role}
-      onChange={(e) => setForm({ ...form, role: e.target.value })}
-      error={!!errors.role}
-      helperText={errors.role}
-    >
-      {ROLE_OPTIONS.map((r) => (
-        <MenuItem key={r} value={r}>
-          {r}
-        </MenuItem>
-      ))}
-    </TextField>
-
-    {/* Department (select) */}
+    {/* Department (FIRST) */}
     <TextField
       select
       label="Department *"
       fullWidth
       margin="normal"
       value={form.department}
-      onChange={(e) => setForm({ ...form, department: e.target.value })}
+      onChange={(e) => {
+        const value = e.target.value;
+        // reset role when department changes
+        setForm((f) => ({ ...f, department: value, role: "" }));
+      }}
       error={!!errors.department}
       helperText={errors.department}
     >
@@ -565,7 +617,26 @@ function renderNode(node, depth = 0) {
       ))}
     </TextField>
 
-    {/* Manager ID (select, REQUIRED) */}
+    {/* Role (depends on department) */}
+    <TextField
+      select
+      label="Role *"
+      fullWidth
+      margin="normal"
+      value={form.role}
+      onChange={(e) => setForm({ ...form, role: e.target.value })}
+      error={!!errors.role}
+      helperText={form.department ? errors.role : "Select department first"}
+      disabled={!form.department}
+    >
+      {roleOptions.map((r) => (
+        <MenuItem key={r} value={r}>
+          {r}
+        </MenuItem>
+      ))}
+    </TextField>
+
+    {/* Manager ID (required) */}
     <TextField
       select
       label="Manager ID *"
@@ -586,11 +657,10 @@ function renderNode(node, depth = 0) {
 
   <DialogActions>
     <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-    <Button variant="contained" onClick={handleCreateSubmit}>Create</Button>
+    <Button variant="contained" onClick={handleCreate}>Create</Button>
   </DialogActions>
 </Dialog>
 
-   
 
 
 <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
