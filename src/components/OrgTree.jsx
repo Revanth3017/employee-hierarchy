@@ -443,7 +443,7 @@ export default function OrgTree({ query = "", focusName = "", isAdmin = false })
 
         {isAdmin && (
           <Button size="small" variant="contained" onClick={openCreatemodal} sx={{ ml: 1 }}>
-            Create User
+            Create Employee
           </Button>
         )}
       </Stack>
@@ -452,7 +452,7 @@ export default function OrgTree({ query = "", focusName = "", isAdmin = false })
 
       {/* Create User dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create User (Employee)</DialogTitle>
+        <DialogTitle>Create Employee</DialogTitle>
         <DialogContent dividers>
           <TextField
             label="Name *"
