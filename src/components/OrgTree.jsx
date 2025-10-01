@@ -46,6 +46,37 @@ const isSearching = (query ?? "").trim().length > 0;
 // how many children to preview per manager
 const CHILD_PREVIEW_COUNT = 2;
 
+// how many children we preview and how many we add per click
+const CHILD_PREVIEW = 2;
+const CHILD_STEP    = 2;
+
+// parentId -> number of children currently visible for that parent
+const [childrenVisible, setChildrenVisible] = useState({});
+
+// read current visible count for a parent (defaults to preview)
+const getVisible = (pid, total) =>
+  Math.min(childrenVisible[pid] ?? CHILD_PREVIEW, total);
+
+// increment by step
+const showMore = (pid, total) =>
+  setChildrenVisible((v) => {
+    const cur  = v[pid] ?? CHILD_PREVIEW;
+    const next = Math.min(total, cur + CHILD_STEP);
+    return cur === next ? v : { ...v, [pid]: next };
+  });
+
+// reset back to preview
+const showLess = (pid) =>
+  setChildrenVisible((v) => {
+    if ((v[pid] ?? CHILD_PREVIEW) === CHILD_PREVIEW) return v;
+    const n = { ...v, [pid]: CHILD_PREVIEW };
+    return n;
+  });
+
+// optional: when you fully collapse everything (or change search), reset counts
+const resetChildCounters = () => setChildrenVisible({});
+
+
 // Departments (you can add/remove freely)
 const DEPT_OPTIONS = [
   "Technology",
@@ -466,55 +497,56 @@ function renderNode(node, depth = 0) {
       </Stack>
 
       {/* Children */}
-      {hasChildren && (
-        <Collapse in={isOpen} timeout="auto" unmountOnExit>
-          <Box sx={{ pl: 2 }}>
-            {(() => {
-              // ---- effective children (in chain mode show only "next" on the chain) ----
-              let effectiveChildren = node.children;
-              if (chainSet && typeof chainNext !== "undefined" && chainNext.has(id)) {
-                effectiveChildren = node.children.filter(
-                  (c) => String(c.id) === chainNext.get(id)
-                );
-              }
+     {hasChildren && (
+  <Collapse in={isOpen} timeout="auto" unmountOnExit>
+    <Box sx={{ pl: 2 }}>
+      {(() => {
+        const total         = node.children.length;
+        const visibleCount  = getVisible(id, total);
+        const visibleKids   = node.children.slice(0, visibleCount);
+        const remaining     = total - visibleCount;
 
-              const total = effectiveChildren.length;
+        return (
+          <>
+            {visibleKids.map((child) => renderNode(child, depth + 1))}
 
-              // ---- pagination (hidden in chain mode) ----
-              const CHILD_PREVIEW_COUNT = 2;
-              const showAll = showAllChildrenIds.has(id);
-              const usePager = !chainSet && total > CHILD_PREVIEW_COUNT;
+            {/* Hide the view-more/less controls when showing a search chain */}
+            {!chainSet && total > CHILD_PREVIEW && (
+              <Box sx={{ mt: 1, ml: 6, display: "flex", gap: 1 }}>
+                {remaining > 0 && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showMore(id, total);
+                    }}
+                  >
+                    {`View more (${Math.min(CHILD_STEP, remaining || CHILD_STEP)})`}
+                  </Button>
+                )}
 
-              const visible = usePager && !showAll
-                ? effectiveChildren.slice(0, CHILD_PREVIEW_COUNT)
-                : effectiveChildren;
+                {visibleCount > CHILD_PREVIEW && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showLess(id);
+                    }}
+                  >
+                    View less
+                  </Button>
+                )}
+              </Box>
+            )}
+          </>
+        );
+      })()}
+    </Box>
+  </Collapse>
+)}
 
-              const remaining = Math.max(total - CHILD_PREVIEW_COUNT, 0);
-
-              return (
-                <>
-                  {visible.map((child) => renderNode(child, depth + 1))}
-
-                  {usePager && (
-                    <Box sx={{ mt: 1, ml: 6 }}>
-                      <Button
-                        size="small"
-                        variant="text"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleChildrenView(id); // flips showAll for this node
-                        }}
-                      >
-                        {showAll ? "View less" : `View more (${remaining})`}
-                      </Button>
-                    </Box>
-                  )}
-                </>
-              );
-            })()}
-          </Box>
-        </Collapse>
-      )}
     </Box>
   );
 }
