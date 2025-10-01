@@ -1,274 +1,88 @@
 // src/components/OrgTree.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
- Alert, Box, Button, ButtonGroup, Collapse, IconButton,
-         LinearProgress, Stack, Typography, TextField, Dialog, DialogTitle,
-         DialogContent, DialogActions, MenuItem } from "@mui/material";
+  Alert, Box, Button, ButtonGroup, Collapse, IconButton,
+  LinearProgress, Stack, Typography, TextField, Dialog, DialogTitle,
+  DialogContent, DialogActions, MenuItem
+} from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import EmployeeCard from "./EmployeeCard";
-import EMPLOYEES from "../data/employees.json";
-import { normalizeEmployees, buildForest } from "../utils/buildTree";
+import { useEmployees } from "../context/EmployeesContext";
+import { buildForest } from "../utils/buildTree";
 
-export default function OrgTree({ query = "", focusName = "" ,isAdmin = false }) {
-  const [data, setData] = useState([]);
+export default function OrgTree({ query = "", focusName = "", isAdmin = false }) {
+  // ===== Employees from Context (single source of truth) =====
+  const { employees, addEmployee, updateEmployee, deleteEmployee, ready } = useEmployees();
+
+  // ===== UI state =====
   const [expanded, setExpanded] = useState(() => new Set()); // Set<string>
   const [selectedId, setSelectedId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-
-const [openCreate, setOpenCreate] = useState(false);
-
-const [createOpen, setCreateOpen] = useState(false);
-const [form, setForm] = useState({ name: "", department: "",role: "", managerId: "" });
-
-const [openEdit, setOpenEdit] = useState(false);
-const [editTarget, setEditTarget] = useState(null); // the employee being edited
-const [editForm, setEditForm] = useState({ name: "", role: "", department: "", managerId: "" });
-const [filterTargetId, setFilterTargetId] = useState(null); // when set → show only path to this id
-const didDefaultExpand = useRef(false);
+  const [err] = useState(""); // kept for structure; not used when context drives data
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", department: "", role: "", managerId: "" });
+  const [errors, setErrors] = useState({});
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", role: "", department: "", managerId: "" });
+  const [filterTargetId, setFilterTargetId] = useState(null); // chain-only mode target
+  const didDefaultExpand = useRef(false);
   const nodeRefs = useRef({}); // id -> element
-const [errors, setErrors] = useState({});
-const managerOptions = useMemo(
-  () => data.map(e => ({ id: String(e.id), label: `${e.id} — ${e.name}` })),
-  [data]
-);
-// If you specifically want only 1,2,3:
-// const managerOptions = [{id:"1",label:"1 — Alice Johnson"}, {id:"2",label:"2 — Bob Smith"}, {id:"3",label:"3 — Carol White"}];
 
-
-  // Show-all toggle per manager id (default: show only first 2)
-const [showAllChildrenIds, setShowAllChildrenIds] = useState(() => new Set());
-
-// consider any non-empty query as "searching" (chain-only rendering)
-const isSearching = (query ?? "").trim().length > 0;
-
-// how many children to preview per manager
-const CHILD_PREVIEW_COUNT = 2;
-
-// how many children we preview and how many we add per click
-const CHILD_PREVIEW = 2;
-const CHILD_STEP    = 2;
-
-// parentId -> number of children currently visible for that parent
-const [childrenVisible, setChildrenVisible] = useState({});
-
-// read current visible count for a parent (defaults to preview)
-const getVisible = (pid, total) =>
-  Math.min(childrenVisible[pid] ?? CHILD_PREVIEW, total);
-
-// increment by step
-const showMore = (pid, total) =>
-  setChildrenVisible((v) => {
-    const cur  = v[pid] ?? CHILD_PREVIEW;
-    const next = Math.min(total, cur + CHILD_STEP);
-    return cur === next ? v : { ...v, [pid]: next };
-  });
-
-// reset back to preview
-const showLess = (pid) =>
-  setChildrenVisible((v) => {
-    if ((v[pid] ?? CHILD_PREVIEW) === CHILD_PREVIEW) return v;
-    const n = { ...v, [pid]: CHILD_PREVIEW };
-    return n;
-  });
-
-// optional: when you fully collapse everything (or change search), reset counts
-const resetChildCounters = () => setChildrenVisible({});
-
-
-// Departments (you can add/remove freely)
-const DEPT_OPTIONS = [
-  "Technology",
-  "Finance",
-  "Operations",
-  "Executive",
-  "HR",
-  "Sales",
-  "Marketing",
-  "Support",
-  "Legal",
-  "Product",
-  "Design",
-];
-
-// Roles keyed by department
-const ROLES_BY_DEPT = {
-  Technology: [
-    "Frontend Engineer",
-    "Backend Engineer",
-    "Full-Stack Engineer",
-    "DevOps Engineer",
-    "Data Engineer",
-    "Mobile Engineer",
-    "QA Engineer",
-    "QA Manager",
-    "Engineering Manager",
-  ],
-  Finance: [
-    "Finance Manager",
-    "Accountant",
-    "Financial Analyst",
-    "Payroll Specialist",
-  ],
-  Operations: [
-    "Operations Manager",
-    "Operations Associate",
-    "Logistics Coordinator",
-  ],
-  Executive: ["CEO", "CTO", "CFO", "COO"],
-  HR: ["HR Manager", "Recruiter", "People Ops"],
-  Sales: ["Sales Manager", "Account Executive", "SDR"],
-  Marketing: ["Marketing Manager", "Content Strategist", "SEO Specialist"],
-  Support: ["Support Manager", "Support Specialist"],
-  Legal: ["Legal Counsel", "Compliance Specialist"],
-  Product: ["Product Manager", "Product Owner"],
-  Design: ["UX Designer", "UI Designer", "Design Manager"],
-};
-
-
-function toggleChildrenView(id) {
-  setShowAllChildrenIds(prev => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
-  });
-}
-
-const openCreatemodal  = () => setCreateOpen(true);
-const closeCreate = () => setCreateOpen(false);
-
-
-const roleOptions = useMemo(() => {
-  const list = ROLES_BY_DEPT[form.department] || [];
-  return [...list].sort((a, b) => a.localeCompare(b));
-}, [form.department]);
-
-
-const STORAGE_KEY = "employees";
-
-useEffect(() => {
-  try {
-    setLoading(true);
-    setErr("");
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const base = stored ? JSON.parse(stored) : EMPLOYEES;
-    setData(normalizeEmployees(base));
-    // seed storage on first run
-    if (!stored) localStorage.setItem(STORAGE_KEY, JSON.stringify(base));
-  } catch (e) {
-    setErr("Failed to load employees from localStorage");
-    setData(normalizeEmployees(EMPLOYEES));
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-
-
-
-function updateEmployees(updater) {
-  setData(prev => {
-    const next = typeof updater === "function" ? updater(prev) : updater;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    return next;
-  });
-}
-
-function beginEdit(emp) {
-  setEditTarget(emp);
-  setEditForm({
-    name: emp.name || "",
-    role: emp.role || "",
-    department: emp.department || "",
-    managerId: emp.managerId == null ? "" : String(emp.managerId),
-  });
-  setOpenEdit(true);
-}
-
-function submitEdit(e) {
-  e?.preventDefault?.();
-  if (!editTarget) return;
-
-  const managerId =
-    editForm.managerId === "" ? null :
-    (isNaN(Number(editForm.managerId)) ? editForm.managerId : Number(editForm.managerId));
-
-  updateEmployees(prev =>
-    prev.map(p =>
-      p.id === editTarget.id
-        ? {
-            ...p,
-            name: editForm.name.trim(),
-            role: editForm.role.trim(),
-            department: editForm.department.trim(),
-            managerId,
-          }
-        : p
-    )
+  // ===== Manager select options (built from context employees) =====
+  const managerOptions = useMemo(
+    () => employees.map(e => ({ id: String(e.id), label: `${e.id} — ${e.name}` })),
+    [employees]
   );
 
-  setSelectedId(editTarget.id);
-  expandPathTo(editTarget.id);
-  setOpenEdit(false);
-  setEditTarget(null);
-}
+  // ===== View-more/less (incremental) =====
+  const CHILD_PREVIEW = 2;
+  const CHILD_STEP = 2;
+  const [childrenVisible, setChildrenVisible] = useState({});
+  const getVisible = (pid, total) => Math.min(childrenVisible[pid] ?? CHILD_PREVIEW, total);
+  const showMore = (pid, total) =>
+    setChildrenVisible(v => {
+      const cur = v[pid] ?? CHILD_PREVIEW;
+      const next = Math.min(total, cur + CHILD_STEP);
+      return cur === next ? v : { ...v, [pid]: next };
+    });
+  const showLess = (pid) =>
+    setChildrenVisible(v => {
+      if ((v[pid] ?? CHILD_PREVIEW) === CHILD_PREVIEW) return v;
+      const n = { ...v, [pid]: CHILD_PREVIEW };
+      return n;
+    });
+  const resetChildCounters = () => setChildrenVisible({});
 
+  // ===== Department & Role options (dependent selects) =====
+  const DEPT_OPTIONS = [
+    "Technology", "Finance", "Operations", "Executive",
+    "HR", "Sales", "Marketing", "Support", "Legal", "Product", "Design",
+  ];
+  const ROLES_BY_DEPT = {
+    Technology: [
+      "Frontend Engineer", "Backend Engineer", "Full-Stack Engineer",
+      "DevOps Engineer", "Data Engineer", "Mobile Engineer",
+      "QA Engineer", "QA Manager", "Engineering Manager",
+    ],
+    Finance: ["Finance Manager", "Accountant", "Financial Analyst", "Payroll Specialist"],
+    Operations: ["Operations Manager", "Operations Associate", "Logistics Coordinator"],
+    Executive: ["CEO", "CTO", "CFO", "COO"],
+    HR: ["HR Manager", "Recruiter", "People Ops"],
+    Sales: ["Sales Manager", "Account Executive", "SDR"],
+    Marketing: ["Marketing Manager", "Content Strategist", "SEO Specialist"],
+    Support: ["Support Manager", "Support Specialist"],
+    Legal: ["Legal Counsel", "Compliance Specialist"],
+    Product: ["Product Manager", "Product Owner"],
+    Design: ["UX Designer", "UI Designer", "Design Manager"],
+  };
+  const roleOptions = useMemo(() => {
+    const list = ROLES_BY_DEPT[form.department] || [];
+    return [...list].sort((a, b) => a.localeCompare(b));
+  }, [form.department]);
 
-function deleteEmp(emp) {
-  const ok = window.confirm(
-    `Delete "${emp.name}" and everyone who reports to them? This cannot be undone.`
-  );
-  if (!ok) return;
-
-  // 1) Compute the whole branch to remove using the current list
-  const idsToRemove = getDescendantIds(data, emp.id);
-
-  // 2) Remove that entire set from the employees list (and persist via your updater)
-  updateEmployees(prev => prev.filter(e => !idsToRemove.has(e.id)));
-
-  // 3) Clean up UI state
-  setExpanded(prev => {
-    const next = new Set(prev);
-    idsToRemove.forEach(id => next.delete(String(id)));
-    return next;
-  });
-
-  setSelectedId(prev => (prev && idsToRemove.has(prev) ? null : prev));
-}
-
-
-
-// Returns a Set of ids to remove: the employee and all their descendants.
-function getDescendantIds(list, rootId) {
-  // Build manager -> [childIds] map
-  const childrenByManager = new Map();
-  for (const e of list) {
-    const key = e.managerId ?? null;
-    if (!childrenByManager.has(key)) childrenByManager.set(key, []);
-    childrenByManager.get(key).push(e.id);
-  }
-
-  const toDelete = new Set([rootId]);
-  const stack = [rootId];
-
-  while (stack.length) {
-    const cur = stack.pop();
-    const kids = childrenByManager.get(cur) || [];
-    for (const kidId of kids) {
-      if (!toDelete.has(kidId)) {
-        toDelete.add(kidId);
-        stack.push(kidId);
-      }
-    }
-  }
-  return toDelete;
-}
-
-
-
-  // 2) Build forest and helpers
-  const forest = useMemo(() => buildForest(data), [data]);
+  // ===== Forest & helpers (built from context employees) =====
+  const forest = useMemo(() => buildForest(employees), [employees]);
 
   const allNodes = useMemo(() => {
     const out = [];
@@ -278,63 +92,54 @@ function getDescendantIds(list, rootId) {
   }, [forest]);
 
   const byId = useMemo(() => new Map(allNodes.map(n => [String(n.id), n])), [allNodes]);
-  
-useEffect(() => {
-  if (didDefaultExpand.current) return;          // run only once
-  if (!forest.length || filterTargetId) return;  // skip if filtering on a search
 
-  const next = new Set(expanded);
-  // expand ALL root nodes (usually just the CEO)
-  forest.forEach((root) => next.add(String(root.id)));
+  // Default expand roots once (so page doesn’t look empty)
+  useEffect(() => {
+    if (didDefaultExpand.current) return;
+    if (!forest.length || filterTargetId) return;
+    const next = new Set(expanded);
+    forest.forEach(root => next.add(String(root.id)));
+    setExpanded(next);
+    didDefaultExpand.current = true;
+  }, [forest, filterTargetId, expanded]);
 
-  setExpanded(next);
-  didDefaultExpand.current = true;
-}, [forest, filterTargetId]);  
+  // Chain-only / focus mode
+  const chainIds = useMemo(() => {
+    if (filterTargetId == null || !byId.size) return null;
+    const ids = [];
+    let cur = byId.get(String(filterTargetId));
+    while (cur) {
+      ids.push(String(cur.id));
+      if (cur.managerId == null) break;
+      cur = byId.get(String(cur.managerId));
+    }
+    return ids.reverse();
+  }, [filterTargetId, byId]);
 
-  // Build the chain of ids from ROOT → ... → TARGET (when filtering)
-const chainIds = useMemo(() => {
-  if (filterTargetId == null || !byId.size) return null;
-  const ids = [];
-  let cur = byId.get(String(filterTargetId));
-  while (cur) {
-    ids.push(String(cur.id));
-    if (cur.managerId == null) break;
-    cur = byId.get(String(cur.managerId));
-  }
-  return ids.reverse(); // now root..target
-}, [filterTargetId, byId]);
+  const chainSet = useMemo(() => (chainIds ? new Set(chainIds) : null), [chainIds]);
+  const chainNext = useMemo(() => {
+    if (!chainIds) return null;
+    const m = new Map();
+    for (let i = 0; i < chainIds.length - 1; i++) m.set(chainIds[i], chainIds[i + 1]);
+    return m;
+  }, [chainIds]);
 
-const chainSet = useMemo(() => (chainIds ? new Set(chainIds) : null), [chainIds]);
+  const expandableIds = useMemo(
+    () => allNodes.filter(n => n.children?.length).map(n => String(n.id)),
+    [allNodes]
+  );
 
-// Map each chain node -> its NEXT child on the path (to render only that child)
-const chainNext = useMemo(() => {
-  if (!chainIds) return null;
-  const m = new Map();
-  for (let i = 0; i < chainIds.length - 1; i++) m.set(chainIds[i], chainIds[i + 1]);
-  return m;
-}, [chainIds]);
+  // bulk buttons highlight (NO hooks)
+  const isAllExpanded = expandableIds.length > 0 && expandableIds.every(id => expanded.has(id));
+  const isAllCollapsed = expanded.size === 0;
 
-const chainTargetId = chainIds?.[chainIds.length - 1] || null;
-
-
-  const expandableIds = useMemo(() => {
-    return allNodes.filter(n => n.children?.length).map(n => String(n.id));
-  }, [allNodes]);
- 
-
-  // highlight state for the bulk buttons (NO hooks here)
-const isAllExpanded  = expandableIds.length > 0 && expandableIds.every(id => expanded.has(id));
-const isAllCollapsed = expanded.size === 0;
-
-
-  // 3) Matches for highlight/count
+  // live matches count for header
   const matches = useMemo(() => {
     if (!query) return new Set();
     const q = query.toLowerCase();
     return new Set(allNodes.filter(e => (e.name || "").toLowerCase().includes(q)).map(e => e.id));
   }, [allNodes, query]);
 
-  // 4) Expand path to id
   function expandPathTo(idLike) {
     const id = String(idLike);
     const next = new Set(expanded);
@@ -346,24 +151,22 @@ const isAllCollapsed = expanded.size === 0;
     setExpanded(next);
   }
 
-  // 5) On focus submit (Enter from search)
+  // Search/focus: expand path + scroll while typing (focusName is driven by App)
   useEffect(() => {
-    if (!focusName || !allNodes.length){ setFilterTargetId(null);return;}
+    if (!focusName || !allNodes.length) { setFilterTargetId(null); return; }
     const q = focusName.toLowerCase();
     const target = allNodes.find(e => (e.name || "").toLowerCase().includes(q));
     if (target) {
       setSelectedId(target.id);
       expandPathTo(target.id);
-      setFilterTargetId(target.id); // enable focus-only mode
-      const el = nodeRefs.current[target.id];
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFilterTargetId(target.id);
+      nodeRefs.current[target.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
     } else {
       setSelectedId(null);
       setFilterTargetId(null);
     }
-  }, [focusName, allNodes]); // only when user submits
+  }, [focusName, allNodes]); // live
 
-  // 6) Toggle a node if it has children
   function toggleNode(id, hasChildren) {
     if (!hasChildren) return;
     setExpanded(prev => {
@@ -373,187 +176,236 @@ const isAllCollapsed = expanded.size === 0;
     });
   }
 
-  function handleCreateSubmit(e) {
-  e.preventDefault();
-  const id = nextId();
-  const managerId =
-    form.managerId === "" ? null : isNaN(Number(form.managerId)) ? form.managerId : Number(form.managerId);
+  // ====== Edit / Delete ======
+  function beginEdit(emp) {
+    setEditTarget(emp);
+    setEditForm({
+      name: emp.name || "",
+      role: emp.role || "",
+      department: emp.department || "",
+      managerId: emp.managerId == null ? "" : String(emp.managerId),
+    });
+    setOpenEdit(true);
+  }
 
-  const newEmp = {
-    id,
-    name: form.name.trim(),
-    role: form.role.trim(),
-    department: form.department.trim(),
-    managerId
-  };
+  function submitEdit(e) {
+    e?.preventDefault?.();
+    if (!editTarget) return;
 
-  // add to in-memory dataset; tree rebuilds from state
-   updateEmployees(prev => [...prev, newEmp]);
+    const managerId =
+      editForm.managerId === ""
+        ? null
+        : (isNaN(Number(editForm.managerId)) ? editForm.managerId : Number(editForm.managerId));
 
-  // focus the new employee and expand its parent chain (if any)
-  setSelectedId(id);
-  if (managerId != null) expandPathTo(id);
+    updateEmployee(editTarget.id, {
+      name: editForm.name.trim(),
+      role: editForm.role.trim(),
+      department: editForm.department.trim(),
+      managerId,
+    });
 
-  setOpenCreate(false);
-  setForm({ name: "", role: "", department: "", managerId: "" });
-}
+    setSelectedId(editTarget.id);
+    expandPathTo(editTarget.id);
+    setOpenEdit(false);
+    setEditTarget(null);
+  }
 
+  // Delete whole subtree (employee + descendants)
+  function getDescendantIds(list, rootId) {
+    const childrenByManager = new Map();
+    for (const e of list) {
+      const key = e.managerId ?? null;
+      if (!childrenByManager.has(key)) childrenByManager.set(key, []);
+      childrenByManager.get(key).push(e.id);
+    }
+    const toDelete = new Set([rootId]);
+    const stack = [rootId];
+    while (stack.length) {
+      const cur = stack.pop();
+      const kids = childrenByManager.get(cur) || [];
+      for (const kidId of kids) {
+        if (!toDelete.has(kidId)) {
+          toDelete.add(kidId);
+          stack.push(kidId);
+        }
+      }
+    }
+    return toDelete;
+  }
+
+  function deleteEmpBranch(emp) {
+    const ok = window.confirm(
+      `Delete "${emp.name}" and everyone who reports to them? This cannot be undone.`
+    );
+    if (!ok) return;
+
+    const idsToRemove = Array.from(getDescendantIds(employees, emp.id));
+    // delete children first (post-order-ish), then the parent
+    idsToRemove.sort((a, b) => (a === emp.id ? 1 : b === emp.id ? -1 : 0));
+    idsToRemove.forEach(id => deleteEmployee(id));
+
+    setExpanded(prev => {
+      const next = new Set(prev);
+      idsToRemove.forEach(id => next.delete(String(id)));
+      return next;
+    });
+    setSelectedId(prev => (prev && idsToRemove.includes(prev) ? null : prev));
+  }
+
+  // ====== Create ======
+  const openCreatemodal = () => setCreateOpen(true);
+  const closeCreate = () => setCreateOpen(false);
+
+  function nextId() {
+    const nums = employees.map(d => Number(d.id)).filter(n => !Number.isNaN(n));
+    return (nums.length ? Math.max(...nums) : 0) + 1;
+  }
 
   function handleCreate() {
-  const nextErrors = {};
-  if (!form.name.trim()) nextErrors.name = "Name is required";
-  if (!form.department) nextErrors.department = "Department is required";
-  if (!form.role) nextErrors.role = "Role is required";
-  if (!form.managerId) nextErrors.managerId = "Manager is required";
+    const nextErrors = {};
+    if (!form.name.trim()) nextErrors.name = "Name is required";
+    if (!form.department) nextErrors.department = "Department is required";
+    if (!form.role) nextErrors.role = "Role is required";
+    if (!form.managerId) nextErrors.managerId = "Manager is required";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
 
-  setErrors(nextErrors);
-  if (Object.keys(nextErrors).length) return;
-
-  const newId = Math.max(0, ...data.map((e) => Number(e.id) || 0)) + 1;
-
-  updateEmployees((prev) => [
-    ...prev,
-    {
-      id: newId,
+    const newEmp = {
+      id: nextId(),
       name: form.name.trim(),
       role: form.role,
       department: form.department,
       managerId: Number(form.managerId),
-    },
-  ]);
+    };
+    addEmployee(newEmp);
 
-  setCreateOpen(false);
-  setForm({ name: "", department: "", role: "", managerId: "" });
-  setErrors({});
-}
+    setCreateOpen(false);
+    setForm({ name: "", department: "", role: "", managerId: "" });
+    setErrors({});
+    // focus the new employee and expand its chain
+    setSelectedId(newEmp.id);
+    if (newEmp.managerId != null) expandPathTo(newEmp.id);
+  }
 
+  // ===== Bulk expand/collapse =====
+  function expandAll() {
+    const next = new Set(expandableIds);
+    setExpanded(next);
+  }
+  function collapseAll() {
+    setExpanded(new Set());
+    resetChildCounters();
+  }
 
-  // 7) Expand/Collapse all
-  function expandAll()   { setExpanded(new Set(expandableIds)); }
-  function collapseAll() { setExpanded(new Set()); }
+  // ===== Render node =====
+  function renderNode(node, depth = 0) {
+    const id = String(node.id);
+    const hasChildren = !!(node.children && node.children.length);
+    const isOpen = expanded.has(id);
 
-  function nextId() {
-  // pick max numeric id + 1 (fallback 1)
-  const nums = data.map(d => Number(d.id)).filter(n => !Number.isNaN(n));
-  return (nums.length ? Math.max(...nums) : 0) + 1;
-}
+    // focus-only chain mode: hide nodes not on the path
+    if (chainSet && !chainSet.has(id)) return null;
 
+    return (
+      <Box key={id} sx={{ pl: depth * 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          {/* Chevron expands/collapses + focuses */}
+          {hasChildren ? (
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedId(node.id);
+                toggleNode(id, hasChildren);
+              }}
+              aria-label={isOpen ? "collapse" : "expand"}
+              aria-pressed={isOpen}
+            >
+              {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+            </IconButton>
+          ) : (
+            <Box sx={{ width: 40 }} />
+          )}
 
-
-
-  // 8) Renderer (pure React, no TreeItem)
-function renderNode(node, depth = 0) {
-  const id = String(node.id);
-  const hasChildren = !!(node.children && node.children.length);
-  const isOpen = expanded.has(id);
-
-  // If we are in focus-only (chain) mode and this node is NOT on the path, hide it.
-  if (chainSet && !chainSet.has(id)) return null;
-
-  return (
-    <Box key={id} sx={{ pl: depth * 2 }}>
-      <Stack direction="row" alignItems="center" spacing={1}>
-        {/* Chevron only expands/collapses; it also focuses the card */}
-        {hasChildren ? (
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedId(node.id);           // focus this card
-              toggleNode(id, hasChildren);      // expand/collapse
-              // Optionally center in view:
-              // nodeRefs.current[node.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+          {/* Card click = focus only */}
+          <Box
+            ref={(el) => (nodeRefs.current[node.id] = el)}
+            onClick={() => setSelectedId(node.id)}
+            role="button"
+            tabIndex={0}
+            aria-selected={selectedId === node.id}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") setSelectedId(node.id);
             }}
-            aria-label={isOpen ? "collapse" : "expand"}
-            aria-pressed={isOpen}
+            sx={{ flex: 1, cursor: "pointer" }}
           >
-            {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-          </IconButton>
-        ) : (
-          <Box sx={{ width: 40 }} />
+            <EmployeeCard
+              emp={node}
+              query={query}
+              selected={selectedId === node.id}
+              canEdit={isAdmin}
+              onEdit={() => beginEdit(node)}
+              onDelete={() => deleteEmpBranch(node)}
+            />
+          </Box>
+        </Stack>
+
+        {/* Children */}
+        {hasChildren && (
+          <Collapse in={isOpen} timeout="auto" unmountOnExit>
+            <Box sx={{ pl: 2 }}>
+              {(() => {
+                // in chain mode, show only the next node on the chain
+                let effectiveChildren = node.children;
+                if (chainSet && chainNext?.has(id)) {
+                  effectiveChildren = node.children.filter(
+                    (c) => String(c.id) === chainNext.get(id)
+                  );
+                }
+                const total = effectiveChildren.length;
+                const visibleCount = getVisible(id, total);
+                const visibleKids = effectiveChildren.slice(0, visibleCount);
+                const remaining = total - visibleCount;
+
+                return (
+                  <>
+                    {visibleKids.map(child => renderNode(child, depth + 1))}
+
+                    {/* incremental pager hidden in chain mode */}
+                    {!chainSet && total > CHILD_PREVIEW && (
+                      <Box sx={{ mt: 1, ml: 6, display: "flex", gap: 1 }}>
+                        {remaining > 0 && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={(e) => { e.stopPropagation(); showMore(id, total); }}
+                          >
+                            {`View more (${Math.min(CHILD_STEP, remaining || CHILD_STEP)})`}
+                          </Button>
+                        )}
+                        {visibleCount > CHILD_PREVIEW && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={(e) => { e.stopPropagation(); showLess(id); }}
+                          >
+                            View less
+                          </Button>
+                        )}
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+            </Box>
+          </Collapse>
         )}
+      </Box>
+    );
+  }
 
-        {/* Card click = focus only */}
-        <Box
-          ref={(el) => (nodeRefs.current[node.id] = el)}
-          onClick={() => setSelectedId(node.id)}
-          role="button"
-          tabIndex={0}
-          aria-selected={selectedId === node.id}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") setSelectedId(node.id);
-          }}
-          sx={{ flex: 1, cursor: "pointer" }}
-        >
-          <EmployeeCard
-            emp={node}
-            query={query}
-            selected={selectedId === node.id}
-            canEdit={isAdmin}
-            onEdit={() => beginEdit(node)}
-            onDelete={() => deleteEmp(node)}
-          />
-        </Box>
-      </Stack>
-
-      {/* Children */}
-     {hasChildren && (
-  <Collapse in={isOpen} timeout="auto" unmountOnExit>
-    <Box sx={{ pl: 2 }}>
-      {(() => {
-        const total         = node.children.length;
-        const visibleCount  = getVisible(id, total);
-        const visibleKids   = node.children.slice(0, visibleCount);
-        const remaining     = total - visibleCount;
-
-        return (
-          <>
-            {visibleKids.map((child) => renderNode(child, depth + 1))}
-
-            {/* Hide the view-more/less controls when showing a search chain */}
-            {!chainSet && total > CHILD_PREVIEW && (
-              <Box sx={{ mt: 1, ml: 6, display: "flex", gap: 1 }}>
-                {remaining > 0 && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showMore(id, total);
-                    }}
-                  >
-                    {`View more (${Math.min(CHILD_STEP, remaining || CHILD_STEP)})`}
-                  </Button>
-                )}
-
-                {visibleCount > CHILD_PREVIEW && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showLess(id);
-                    }}
-                  >
-                    View less
-                  </Button>
-                )}
-              </Box>
-            )}
-          </>
-        );
-      })()}
-    </Box>
-  </Collapse>
-)}
-
-    </Box>
-  );
-}
-
-
-  // states
-  if (loading) {
+  // ===== Loading / errors =====
+  if (!ready) {
     return (
       <Box sx={{ p: 1 }}>
         <LinearProgress />
@@ -567,175 +419,145 @@ function renderNode(node, depth = 0) {
   if (!forest.length) {
     return (
       <Alert severity="info" sx={{ my: 1 }}>
-        No employees to display. Confirm <strong>public/employees.json</strong> has records with
-        <em> id, name, role, department, managerId</em> (or equivalent keys).
+        No employees to display. Add users to see the org chart.
       </Alert>
     );
   }
 
-  // tree
+  // ===== Tree + controls =====
   return (
     <Box sx={{ p: 1 }}>
       <Stack direction="row" spacing={1} sx={{ mb: 1, justifyContent: "flex-end", flexWrap: "wrap", rowGap: 1 }}>
         <Typography variant="body2" sx={{ mr: "auto" }}>
           {query ? (matches.size ? `${matches.size} match${matches.size > 1 ? "es" : ""}` : "No matches") : " "}
         </Typography>
-<ButtonGroup size="small" variant="outlined">
-  <Button
-    onClick={expandAll}
-    variant={isAllExpanded ? "contained" : "outlined"}
-  >
-    Expand all
-  </Button>
-  <Button
-    onClick={collapseAll}
-    variant={isAllCollapsed ? "contained" : "outlined"}
-  >
-    Collapse all
-  </Button>
-</ButtonGroup>
 
+        <ButtonGroup size="small" variant="outlined">
+          <Button onClick={expandAll} variant={isAllExpanded ? "contained" : "outlined"}>
+            Expand all
+          </Button>
+          <Button onClick={collapseAll} variant={isAllCollapsed ? "contained" : "outlined"}>
+            Collapse all
+          </Button>
+        </ButtonGroup>
 
- {isAdmin && (
-   <Button
-     size="small"
-     variant="contained"
-    
-      onClick={openCreatemodal}
-   >
-     Create User
-   </Button>
- )}
-
-
-
+        {isAdmin && (
+          <Button size="small" variant="contained" onClick={openCreatemodal} sx={{ ml: 1 }}>
+            Create User
+          </Button>
+        )}
       </Stack>
 
       {forest.map(root => renderNode(root))}
-   
-<Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
-  <DialogTitle>Create User (Employee)</DialogTitle>
-  <DialogContent dividers>
-    {/* Name */}
-    <TextField
-      label="Name *"
-      fullWidth
-      margin="normal"
-      value={form.name}
-      onChange={(e) => setForm({ ...form, name: e.target.value })}
-      error={!!errors.name}
-      helperText={errors.name}
-    />
 
-    {/* Department (FIRST) */}
-    <TextField
-      select
-      label="Department *"
-      fullWidth
-      margin="normal"
-      value={form.department}
-      onChange={(e) => {
-        const value = e.target.value;
-        // reset role when department changes
-        setForm((f) => ({ ...f, department: value, role: "" }));
-      }}
-      error={!!errors.department}
-      helperText={errors.department}
-    >
-      {DEPT_OPTIONS.map((d) => (
-        <MenuItem key={d} value={d}>
-          {d}
-        </MenuItem>
-      ))}
-    </TextField>
+      {/* Create User dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Create User (Employee)</DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            label="Name *"
+            fullWidth
+            margin="normal"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            error={!!errors.name}
+            helperText={errors.name}
+          />
 
-    {/* Role (depends on department) */}
-    <TextField
-      select
-      label="Role *"
-      fullWidth
-      margin="normal"
-      value={form.role}
-      onChange={(e) => setForm({ ...form, role: e.target.value })}
-      error={!!errors.role}
-      helperText={form.department ? errors.role : "Select department first"}
-      disabled={!form.department}
-    >
-      {roleOptions.map((r) => (
-        <MenuItem key={r} value={r}>
-          {r}
-        </MenuItem>
-      ))}
-    </TextField>
+          <TextField
+            select
+            label="Department *"
+            fullWidth
+            margin="normal"
+            value={form.department}
+            onChange={(e) => {
+              const value = e.target.value;
+              setForm((f) => ({ ...f, department: value, role: "" }));
+            }}
+            error={!!errors.department}
+            helperText={errors.department}
+          >
+            {DEPT_OPTIONS.map((d) => (
+              <MenuItem key={d} value={d}>{d}</MenuItem>
+            ))}
+          </TextField>
 
-    {/* Manager ID (required) */}
-    <TextField
-      select
-      label="Manager ID *"
-      fullWidth
-      margin="normal"
-      value={form.managerId}
-      onChange={(e) => setForm({ ...form, managerId: e.target.value })}
-      error={!!errors.managerId}
-      helperText={errors.managerId || "Choose the direct manager"}
-    >
-      {managerOptions.map((m) => (
-        <MenuItem key={m.id} value={m.id}>
-          {m.label}
-        </MenuItem>
-      ))}
-    </TextField>
-  </DialogContent>
+          <TextField
+            select
+            label="Role *"
+            fullWidth
+            margin="normal"
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            error={!!errors.role}
+            helperText={form.department ? errors.role : "Select department first"}
+            disabled={!form.department}
+          >
+            {roleOptions.map((r) => (
+              <MenuItem key={r} value={r}>{r}</MenuItem>
+            ))}
+          </TextField>
 
-  <DialogActions>
-    <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-    <Button variant="contained" onClick={handleCreate}>Create</Button>
-  </DialogActions>
-</Dialog>
+          <TextField
+            select
+            label="Manager ID *"
+            fullWidth
+            margin="normal"
+            value={form.managerId}
+            onChange={(e) => setForm({ ...form, managerId: e.target.value })}
+            error={!!errors.managerId}
+            helperText={errors.managerId || "Choose the direct manager"}
+          >
+            {managerOptions.map((m) => (
+              <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreate}>Create</Button>
+        </DialogActions>
+      </Dialog>
 
-
-
-<Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
-  <DialogTitle>Edit Employee</DialogTitle>
-  <DialogContent>
-    <Stack component="form" onSubmit={submitEdit} spacing={1.5} sx={{ mt: 1 }}>
-      <TextField
-        label="Name"
-        value={editForm.name}
-        onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
-        required
-        autoFocus
-      />
-      <TextField
-        label="Role"
-        value={editForm.role}
-        onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value }))}
-        required
-      />
-      <TextField
-        label="Department"
-        value={editForm.department}
-        onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
-        required
-      />
-      <TextField
-        label="Manager ID (optional)"
-        placeholder="e.g. 1"
-        value={editForm.managerId}
-        onChange={(e) => setEditForm(f => ({ ...f, managerId: e.target.value }))}
-        helperText="Leave blank for top-level (no manager)"
-      />
-      <button type="submit" style={{ display: "none" }} />
-    </Stack>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setOpenEdit(false)}>Cancel</Button>
-    <Button onClick={submitEdit} variant="contained">Save</Button>
-  </DialogActions>
-</Dialog>
-
-   
-  
+      {/* Edit dialog */}
+      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Edit Employee</DialogTitle>
+        <DialogContent>
+          <Stack component="form" onSubmit={submitEdit} spacing={1.5} sx={{ mt: 1 }}>
+            <TextField
+              label="Name"
+              value={editForm.name}
+              onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+              required
+              autoFocus
+            />
+            <TextField
+              label="Role"
+              value={editForm.role}
+              onChange={(e) => setEditForm(f => ({ ...f, role: e.target.value }))}
+              required
+            />
+            <TextField
+              label="Department"
+              value={editForm.department}
+              onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
+              required
+            />
+            <TextField
+              label="Manager ID (optional)"
+              placeholder="e.g. 1"
+              value={editForm.managerId}
+              onChange={(e) => setEditForm(f => ({ ...f, managerId: e.target.value }))}
+              helperText="Leave blank for top-level (no manager)"
+            />
+            <button type="submit" style={{ display: "none" }} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEdit(false)}>Cancel</Button>
+          <Button onClick={submitEdit} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
